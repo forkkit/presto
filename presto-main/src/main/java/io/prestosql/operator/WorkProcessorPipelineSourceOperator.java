@@ -241,14 +241,12 @@ public class WorkProcessorPipelineSourceOperator
         }
 
         // account processed bytes from lazy blocks only when they are loaded
-        recordMaterializedBytes(page, sizeInBytes -> {
+        return recordMaterializedBytes(page, sizeInBytes -> {
             operatorContext.outputDataSize.getAndAdd(sizeInBytes);
             if (downstreamOperatorContext != null) {
                 downstreamOperatorContext.inputDataSize.getAndAdd(sizeInBytes);
             }
         });
-
-        return page;
     }
 
     private boolean isLastOperator(int operatorIndex)

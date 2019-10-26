@@ -15,5 +15,11 @@ package io.prestosql.metadata;
 
 public interface SqlFunction
 {
-    FunctionMetadata getFunctionMetadata();
+    Signature getSignature();
+
+    boolean isHidden();
+
+    boolean isDeterministic();
+
+    String getDescription();
 }

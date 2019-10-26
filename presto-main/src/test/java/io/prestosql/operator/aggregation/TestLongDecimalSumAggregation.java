@@ -16,7 +16,6 @@ package io.prestosql.operator.aggregation;
 import com.google.common.collect.ImmutableList;
 import io.prestosql.spi.block.BlockBuilder;
 import io.prestosql.spi.type.DecimalType;
-import io.prestosql.spi.type.Type;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -42,8 +41,8 @@ public class TestLongDecimalSumAggregation
     }
 
     @Override
-    protected List<Type> getFunctionParameterTypes()
+    protected List<String> getFunctionParameterTypes()
     {
-        return ImmutableList.of(DecimalType.createDecimalType(MAX_SHORT_PRECISION + 1, 2));
+        return ImmutableList.of(DecimalType.createDecimalType(MAX_SHORT_PRECISION + 1, 2).getTypeSignature().toString());
     }
 }

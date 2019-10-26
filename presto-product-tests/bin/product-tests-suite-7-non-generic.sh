@@ -30,14 +30,4 @@ presto-product-tests/bin/run_on_docker.sh \
     -g sqlserver \
     || exit_code=1
 
-presto-product-tests/bin/run_on_docker.sh \
-    two-mixed-hives \
-    -g two_hives \
-    || exit_code=1
-
-presto-product-tests/bin/run_on_docker.sh \
-    two-kerberos-hives \
-    -g two_hives \
-    || exit_code=1
-
 exit "${exit_code}"

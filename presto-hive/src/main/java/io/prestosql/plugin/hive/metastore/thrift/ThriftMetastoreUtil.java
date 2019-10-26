@@ -439,7 +439,7 @@ public final class ThriftMetastoreUtil
                 .setViewOriginalText(Optional.ofNullable(emptyToNull(table.getViewOriginalText())))
                 .setViewExpandedText(Optional.ofNullable(emptyToNull(table.getViewExpandedText())));
 
-        fromMetastoreApiStorageDescriptor(table.getParameters(), storageDescriptor, tableBuilder.getStorageBuilder(), table.getTableName());
+        fromMetastoreApiStorageDescriptor(storageDescriptor, tableBuilder.getStorageBuilder(), table.getTableName());
 
         return tableBuilder.build();
     }
@@ -502,12 +502,7 @@ public final class ThriftMetastoreUtil
                         .collect(toList()))
                 .setParameters(partition.getParameters());
 
-        // TODO is bucketing_version set on partition level??
-        fromMetastoreApiStorageDescriptor(
-                partition.getParameters(),
-                storageDescriptor,
-                partitionBuilder.getStorageBuilder(),
-                format("%s.%s", partition.getTableName(), partition.getValues()));
+        fromMetastoreApiStorageDescriptor(storageDescriptor, partitionBuilder.getStorageBuilder(), format("%s.%s", partition.getTableName(), partition.getValues()));
 
         return partitionBuilder.build();
     }
@@ -706,11 +701,7 @@ public final class ThriftMetastoreUtil
         return new Column(fieldSchema.getName(), HiveType.valueOf(fieldSchema.getType()), Optional.ofNullable(emptyToNull(fieldSchema.getComment())));
     }
 
-    private static void fromMetastoreApiStorageDescriptor(
-            Map<String, String> tableParameters,
-            StorageDescriptor storageDescriptor,
-            Storage.Builder builder,
-            String tablePartitionName)
+    private static void fromMetastoreApiStorageDescriptor(StorageDescriptor storageDescriptor, Storage.Builder builder, String tablePartitionName)
     {
         SerDeInfo serdeInfo = storageDescriptor.getSerdeInfo();
         if (serdeInfo == null) {
@@ -719,7 +710,7 @@ public final class ThriftMetastoreUtil
 
         builder.setStorageFormat(StorageFormat.createNullable(serdeInfo.getSerializationLib(), storageDescriptor.getInputFormat(), storageDescriptor.getOutputFormat()))
                 .setLocation(nullToEmpty(storageDescriptor.getLocation()))
-                .setBucketProperty(HiveBucketProperty.fromStorageDescriptor(tableParameters, storageDescriptor, tablePartitionName))
+                .setBucketProperty(HiveBucketProperty.fromStorageDescriptor(storageDescriptor, tablePartitionName))
                 .setSkewed(storageDescriptor.isSetSkewedInfo() && storageDescriptor.getSkewedInfo().isSetSkewedColNames() && !storageDescriptor.getSkewedInfo().getSkewedColNames().isEmpty())
                 .setSerdeParameters(serdeInfo.getParameters() == null ? ImmutableMap.of() : serdeInfo.getParameters());
     }

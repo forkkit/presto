@@ -16,6 +16,7 @@ package io.prestosql.operator;
 import com.google.common.collect.ImmutableList;
 import io.airlift.units.DataSize;
 import io.prestosql.metadata.Metadata;
+import io.prestosql.metadata.Signature;
 import io.prestosql.operator.project.PageProcessor;
 import io.prestosql.spi.Page;
 import io.prestosql.sql.gen.ExpressionCompiler;
@@ -85,9 +86,8 @@ public class TestFilterAndProjectOperator
                 .addSequencePage(100, 0, 0)
                 .build();
 
-        Metadata metadata = createTestMetadataManager();
         RowExpression filter = call(
-                metadata.resolveOperator(BETWEEN, ImmutableList.of(BIGINT, BIGINT, BIGINT)),
+                Signature.internalOperator(BETWEEN, BOOLEAN.getTypeSignature(), ImmutableList.of(BIGINT.getTypeSignature(), BIGINT.getTypeSignature(), BIGINT.getTypeSignature())),
                 BOOLEAN,
                 field(1, BIGINT),
                 constant(10L, BIGINT),
@@ -95,11 +95,12 @@ public class TestFilterAndProjectOperator
 
         RowExpression field0 = field(0, VARCHAR);
         RowExpression add5 = call(
-                metadata.resolveOperator(ADD, ImmutableList.of(BIGINT, BIGINT)),
+                Signature.internalOperator(ADD, BIGINT.getTypeSignature(), ImmutableList.of(BIGINT.getTypeSignature(), BIGINT.getTypeSignature())),
                 BIGINT,
                 field(1, BIGINT),
                 constant(5L, BIGINT));
 
+        Metadata metadata = createTestMetadataManager();
         ExpressionCompiler compiler = new ExpressionCompiler(metadata, new PageFunctionCompiler(metadata, 0));
         Supplier<PageProcessor> processor = compiler.compilePageProcessor(Optional.of(filter), ImmutableList.of(field0, add5));
 
@@ -137,13 +138,13 @@ public class TestFilterAndProjectOperator
                 .addSequencePage(100, 0, 0)
                 .build();
 
-        Metadata metadata = createTestMetadataManager();
         RowExpression filter = call(
-                metadata.resolveOperator(EQUAL, ImmutableList.of(BIGINT, BIGINT)),
+                Signature.internalOperator(EQUAL, BOOLEAN.getTypeSignature(), ImmutableList.of(BIGINT.getTypeSignature(), BIGINT.getTypeSignature())),
                 BOOLEAN,
                 field(1, BIGINT),
                 constant(10L, BIGINT));
 
+        Metadata metadata = createTestMetadataManager();
         ExpressionCompiler compiler = new ExpressionCompiler(metadata, new PageFunctionCompiler(metadata, 0));
         Supplier<PageProcessor> processor = compiler.compilePageProcessor(Optional.of(filter), ImmutableList.of(field(1, BIGINT)));
 

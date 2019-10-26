@@ -13,12 +13,14 @@
  */
 package io.prestosql.orc;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import io.airlift.units.DataSize;
-import io.prestosql.spi.Page;
 import io.prestosql.spi.block.Block;
+import io.prestosql.spi.type.Type;
 import org.joda.time.DateTimeZone;
 import org.testng.annotations.Test;
+
+import java.util.Map;
 
 import static com.google.common.io.Resources.getResource;
 import static com.google.common.io.Resources.toByteArray;
@@ -48,29 +50,32 @@ public class TestOrcLz4
         assertEquals(orcReader.getCompressionKind(), LZ4);
         assertEquals(orcReader.getFooter().getNumberOfRows(), 10_000);
 
+        Map<Integer, Type> includedColumns = ImmutableMap.<Integer, Type>builder()
+                .put(0, BIGINT)
+                .put(1, INTEGER)
+                .put(2, BIGINT)
+                .build();
+
         OrcRecordReader reader = orcReader.createRecordReader(
-                orcReader.getRootColumn().getNestedColumns(),
-                ImmutableList.of(BIGINT, INTEGER, BIGINT),
+                includedColumns,
                 OrcPredicate.TRUE,
                 DateTimeZone.UTC,
                 newSimpleAggregatedMemoryContext(),
-                INITIAL_BATCH_SIZE,
-                RuntimeException::new);
+                INITIAL_BATCH_SIZE);
 
         int rows = 0;
         while (true) {
-            Page page = reader.nextPage();
-            if (page == null) {
+            int batchSize = reader.nextBatch();
+            if (batchSize <= 0) {
                 break;
             }
-            page = page.getLoadedPage();
-            rows += page.getPositionCount();
+            rows += batchSize;
 
-            Block xBlock = page.getBlock(0);
-            Block yBlock = page.getBlock(1);
-            Block zBlock = page.getBlock(2);
+            Block xBlock = reader.readBlock(0);
+            Block yBlock = reader.readBlock(1);
+            Block zBlock = reader.readBlock(2);
 
-            for (int position = 0; position < page.getPositionCount(); position++) {
+            for (int position = 0; position < batchSize; position++) {
                 BIGINT.getLong(xBlock, position);
                 INTEGER.getLong(yBlock, position);
                 BIGINT.getLong(zBlock, position);

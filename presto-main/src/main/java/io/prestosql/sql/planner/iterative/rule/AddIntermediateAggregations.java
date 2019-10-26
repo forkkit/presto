@@ -181,7 +181,7 @@ public class AddIntermediateAggregations
             builder.put(
                     output,
                     new AggregationNode.Aggregation(
-                            aggregation.getResolvedFunction(),
+                            aggregation.getSignature(),
                             ImmutableList.of(output.toSymbolReference()),
                             false,
                             Optional.empty(),

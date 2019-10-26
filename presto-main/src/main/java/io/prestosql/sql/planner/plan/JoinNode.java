@@ -18,6 +18,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import io.prestosql.sql.planner.SortExpressionContext;
 import io.prestosql.sql.planner.Symbol;
 import io.prestosql.sql.tree.ComparisonExpression;
 import io.prestosql.sql.tree.Expression;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.ImmutableList.toImmutableList;
+import static io.prestosql.sql.planner.SortExpressionExtractor.extractSortExpression;
 import static io.prestosql.sql.planner.plan.JoinNode.DistributionType.PARTITIONED;
 import static io.prestosql.sql.planner.plan.JoinNode.DistributionType.REPLICATED;
 import static io.prestosql.sql.planner.plan.JoinNode.Type.FULL;
@@ -99,23 +101,15 @@ public class JoinNode
         this.spillable = spillable;
         this.dynamicFilters = ImmutableMap.copyOf(requireNonNull(dynamicFilters, "dynamicFilters is null"));
 
-        Set<Symbol> leftSymbols = ImmutableSet.copyOf(left.getOutputSymbols());
-        Set<Symbol> rightSymbols = ImmutableSet.copyOf(right.getOutputSymbols());
         Set<Symbol> inputSymbols = ImmutableSet.<Symbol>builder()
-                .addAll(leftSymbols)
-                .addAll(rightSymbols)
+                .addAll(left.getOutputSymbols())
+                .addAll(right.getOutputSymbols())
                 .build();
         checkArgument(new HashSet<>(inputSymbols).containsAll(outputSymbols), "Left and right join inputs do not contain all output symbols");
         checkArgument(!isCrossJoin() || inputSymbols.size() == outputSymbols.size(), "Cross join does not support output symbols pruning or reordering");
 
         checkArgument(!(criteria.isEmpty() && leftHashSymbol.isPresent()), "Left hash symbol is only valid in an equijoin");
         checkArgument(!(criteria.isEmpty() && rightHashSymbol.isPresent()), "Right hash symbol is only valid in an equijoin");
-
-        criteria.forEach(equiJoinClause ->
-                checkArgument(
-                        leftSymbols.contains(equiJoinClause.getLeft()) &&
-                                rightSymbols.contains(equiJoinClause.getRight()),
-                        "Equality join criteria should be normalized according to join sides: %s", equiJoinClause));
 
         if (distributionType.isPresent()) {
             // The implementation of full outer join only works if the data is hash partitioned.
@@ -133,7 +127,7 @@ public class JoinNode
         }
 
         for (Symbol symbol : dynamicFilters.values()) {
-            checkArgument(rightSymbols.contains(symbol), "Right join input doesn't contain symbol for dynamic filter: %s", symbol);
+            checkArgument(right.getOutputSymbols().contains(symbol), "Right join input doesn't contain symbol for dynamic filter: %s", symbol);
         }
     }
 
@@ -263,6 +257,12 @@ public class JoinNode
     public Optional<Expression> getFilter()
     {
         return filter;
+    }
+
+    public Optional<SortExpressionContext> getSortExpressionContext()
+    {
+        return filter
+                .flatMap(filter -> extractSortExpression(ImmutableSet.copyOf(right.getOutputSymbols()), filter));
     }
 
     @JsonProperty("leftHashSymbol")

@@ -96,7 +96,6 @@ import static com.google.common.base.Verify.verify;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static io.prestosql.sql.analyzer.SemanticExceptions.notSupportedException;
-import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toSqlType;
 import static io.prestosql.sql.planner.plan.AggregationNode.singleGroupingSet;
 import static io.prestosql.sql.tree.BooleanLiteral.TRUE_LITERAL;
 import static io.prestosql.sql.tree.Join.Type.CROSS;
@@ -460,7 +459,7 @@ class RelationPlanner
             int leftField = joinAnalysis.getLeftJoinFields().get(i);
             leftCoercions.put(leftOutput, new Cast(
                     left.getSymbol(leftField).toSymbolReference(),
-                    toSqlType(type),
+                    type.getTypeSignature().toString(),
                     false,
                     typeCoercion.isTypeOnlyCoercion(left.getDescriptor().getFieldByIndex(leftField).getType(), type)));
             leftJoinColumns.put(identifier, leftOutput);
@@ -470,7 +469,7 @@ class RelationPlanner
             int rightField = joinAnalysis.getRightJoinFields().get(i);
             rightCoercions.put(rightOutput, new Cast(
                     right.getSymbol(rightField).toSymbolReference(),
-                    toSqlType(type),
+                    type.getTypeSignature().toString(),
                     false,
                     typeCoercion.isTypeOnlyCoercion(right.getDescriptor().getFieldByIndex(rightField).getType(), type)));
             rightJoinColumns.put(identifier, rightOutput);
@@ -617,7 +616,6 @@ class RelationPlanner
         }
         ImmutableList<Symbol> unnestedSymbols = unnestedSymbolsBuilder.build();
 
-        // TODO do these need translation
         // Add a projection for all the unnest arguments
         PlanBuilder planBuilder = initializePlanBuilder(leftPlan);
         planBuilder = planBuilder.appendProjections(node.getExpressions(), symbolAllocator, idAllocator);
@@ -711,28 +709,26 @@ class RelationPlanner
             Symbol symbol = symbolAllocator.newSymbol(field);
             outputSymbolsBuilder.add(symbol);
         }
-        List<Symbol> outputSymbols = outputSymbolsBuilder.build();
-        TranslationMap translationMap = translationMapFromSourceOutputs(ImmutableList.of(), node, outputSymbols);
 
         ImmutableList.Builder<List<Expression>> rows = ImmutableList.builder();
         for (Expression row : node.getRows()) {
             ImmutableList.Builder<Expression> values = ImmutableList.builder();
             if (row instanceof Row) {
                 for (Expression item : ((Row) row).getItems()) {
-                    Expression expression = translationMap.rewrite(item);
+                    Expression expression = Coercer.addCoercions(item, analysis);
                     values.add(ExpressionTreeRewriter.rewriteWith(new ParameterRewriter(analysis), expression));
                 }
             }
             else {
-                Expression expression = translationMap.rewrite(row);
+                Expression expression = Coercer.addCoercions(row, analysis);
                 values.add(ExpressionTreeRewriter.rewriteWith(new ParameterRewriter(analysis), expression));
             }
 
             rows.add(values.build());
         }
 
-        ValuesNode valuesNode = new ValuesNode(idAllocator.getNextId(), outputSymbols, rows.build());
-        return new RelationPlan(valuesNode, scope, outputSymbols);
+        ValuesNode valuesNode = new ValuesNode(idAllocator.getNextId(), outputSymbolsBuilder.build(), rows.build());
+        return new RelationPlan(valuesNode, scope, outputSymbolsBuilder.build());
     }
 
     @Override
@@ -747,14 +743,13 @@ class RelationPlanner
         List<Symbol> unnestedSymbols = outputSymbolsBuilder.build();
 
         // If we got here, then we must be unnesting a constant, and not be in a join (where there could be column references)
-        TranslationMap translationMap = translationMapFromSourceOutputs(ImmutableList.of(), node, unnestedSymbols);
         ImmutableList.Builder<Symbol> argumentSymbols = ImmutableList.builder();
         ImmutableList.Builder<Expression> values = ImmutableList.builder();
         ImmutableMap.Builder<Symbol, List<Symbol>> unnestSymbols = ImmutableMap.builder();
         Iterator<Symbol> unnestedSymbolsIterator = unnestedSymbols.iterator();
         for (Expression expression : node.getExpressions()) {
             Type type = analysis.getType(expression);
-            Expression rewritten = translationMap.rewrite(expression);
+            Expression rewritten = Coercer.addCoercions(expression, analysis);
             rewritten = ExpressionTreeRewriter.rewriteWith(new ParameterRewriter(analysis), rewritten);
             values.add(rewritten);
             Symbol inputSymbol = symbolAllocator.newSymbol(rewritten, type);
@@ -824,7 +819,7 @@ class RelationPlanner
             Type inputType = symbolAllocator.getTypes().get(inputSymbol);
             Type outputType = targetColumnTypes[i];
             if (!outputType.equals(inputType)) {
-                Expression cast = new Cast(inputSymbol.toSymbolReference(), toSqlType(outputType));
+                Expression cast = new Cast(inputSymbol.toSymbolReference(), outputType.getTypeSignature().toString());
                 Symbol outputSymbol = symbolAllocator.newSymbol(cast, outputType);
                 assignments.put(outputSymbol, cast);
                 newSymbols.add(outputSymbol);

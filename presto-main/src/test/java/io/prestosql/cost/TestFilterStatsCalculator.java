@@ -29,7 +29,6 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import static io.prestosql.metadata.MetadataManager.createTestMetadataManager;
-import static io.prestosql.sql.ExpressionTestUtils.planExpression;
 import static io.prestosql.sql.planner.iterative.rule.test.PlanBuilder.expression;
 import static io.prestosql.testing.TestingSession.testSessionBuilder;
 import static java.lang.Double.NEGATIVE_INFINITY;
@@ -53,7 +52,6 @@ public class TestFilterStatsCalculator
     private PlanNodeStatsEstimate standardInputStatistics;
     private TypeProvider standardTypes;
     private Session session;
-    private Metadata metadata;
 
     @BeforeClass
     public void setUp()
@@ -138,7 +136,7 @@ public class TestFilterStatsCalculator
                 .build());
 
         session = testSessionBuilder().build();
-        metadata = createTestMetadataManager();
+        Metadata metadata = createTestMetadataManager();
         statsCalculator = new FilterStatsCalculator(metadata, new ScalarStatsCalculator(metadata, new TypeAnalyzer(new SqlParser(), metadata)), new StatsNormalizer());
     }
 
@@ -566,7 +564,7 @@ public class TestFilterStatsCalculator
 
     private PlanNodeStatsAssertion assertExpression(String expression)
     {
-        return assertExpression(planExpression(metadata, session, standardTypes, expression(expression)));
+        return assertExpression(expression(expression));
     }
 
     private PlanNodeStatsAssertion assertExpression(Expression expression)

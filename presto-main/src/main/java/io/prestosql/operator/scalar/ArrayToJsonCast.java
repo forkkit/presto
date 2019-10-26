@@ -26,7 +26,6 @@ import io.prestosql.spi.connector.ConnectorSession;
 import io.prestosql.spi.function.OperatorType;
 import io.prestosql.spi.type.StandardTypes;
 import io.prestosql.spi.type.Type;
-import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.spi.type.TypeSignatureParameter;
 import io.prestosql.util.JsonUtil.JsonGeneratorWriter;
 
@@ -40,7 +39,7 @@ import static io.prestosql.operator.scalar.JsonOperators.JSON_FACTORY;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.ArgumentProperty.valueTypeArgumentProperty;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.NullConvention.RETURN_NULL_ON_NULL;
 import static io.prestosql.spi.StandardErrorCode.INVALID_CAST_ARGUMENT;
-import static io.prestosql.spi.type.TypeSignature.arrayType;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.type.JsonType.JSON;
 import static io.prestosql.util.Failures.checkCondition;
 import static io.prestosql.util.JsonUtil.canCastToJson;
@@ -59,7 +58,7 @@ public class ArrayToJsonCast
                 ImmutableList.of(typeVariable("T")),
                 ImmutableList.of(),
                 JSON.getTypeSignature(),
-                ImmutableList.of(arrayType(new TypeSignature("T"))));
+                ImmutableList.of(parseTypeSignature("array(T)")));
     }
 
     @Override
@@ -67,15 +66,18 @@ public class ArrayToJsonCast
     {
         checkArgument(arity == 1, "Expected arity to be 1");
         Type type = boundVariables.getTypeVariable("T");
-        Type arrayType = metadata.getParameterizedType(StandardTypes.ARRAY, ImmutableList.of(TypeSignatureParameter.typeParameter(type.getTypeSignature())));
+        Type arrayType = metadata.getParameterizedType(StandardTypes.ARRAY, ImmutableList.of(TypeSignatureParameter.of(type.getTypeSignature())));
         checkCondition(canCastToJson(arrayType), INVALID_CAST_ARGUMENT, "Cannot cast %s to JSON", arrayType);
 
         JsonGeneratorWriter writer = JsonGeneratorWriter.createJsonGeneratorWriter(type);
         MethodHandle methodHandle = METHOD_HANDLE.bindTo(writer);
         return new ScalarFunctionImplementation(
                 false,
-                ImmutableList.of(valueTypeArgumentProperty(RETURN_NULL_ON_NULL)),
-                methodHandle);
+                ImmutableList.of(
+                        valueTypeArgumentProperty(RETURN_NULL_ON_NULL),
+                        valueTypeArgumentProperty(RETURN_NULL_ON_NULL)),
+                methodHandle,
+                isDeterministic());
     }
 
     public static Slice toJson(JsonGeneratorWriter writer, ConnectorSession session, Block block)

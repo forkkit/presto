@@ -40,8 +40,6 @@ import io.prestosql.sql.planner.plan.GroupIdNode;
 import io.prestosql.sql.planner.plan.IndexSourceNode;
 import io.prestosql.sql.planner.plan.IntersectNode;
 import io.prestosql.sql.planner.plan.JoinNode;
-import io.prestosql.sql.planner.plan.JoinNode.EquiJoinClause;
-import io.prestosql.sql.planner.plan.JoinNode.Type;
 import io.prestosql.sql.planner.plan.LimitNode;
 import io.prestosql.sql.planner.plan.MarkDistinctNode;
 import io.prestosql.sql.planner.plan.OffsetNode;
@@ -400,18 +398,16 @@ public final class PlanMatchPattern
     }
 
     public static PlanMatchPattern join(
-            Type joinType,
-            List<ExpectedValueProvider<EquiJoinClause>> expectedEquiCriteria,
+            JoinNode.Type joinType,
+            List<ExpectedValueProvider<JoinNode.EquiJoinClause>> expectedEquiCriteria,
             Map<String, String> expectedDynamicFilter,
             Optional<String> expectedStaticFilter,
             PlanMatchPattern leftSource,
-            PlanMatchPattern right,
-            Metadata metadata)
+            PlanMatchPattern right)
     {
         Map<SymbolAlias, SymbolAlias> expectedDynamicFilterAliases = expectedDynamicFilter.entrySet().stream()
                 .collect(toImmutableMap(entry -> new SymbolAlias(entry.getKey()), entry -> new SymbolAlias(entry.getValue())));
         DynamicFilterMatcher dynamicFilterMatcher = new DynamicFilterMatcher(
-                metadata,
                 expectedDynamicFilterAliases,
                 expectedStaticFilter.map(predicate -> rewriteIdentifiersToSymbolReferences(new SqlParser().createExpression(predicate))));
         JoinMatcher joinMatcher = new JoinMatcher(

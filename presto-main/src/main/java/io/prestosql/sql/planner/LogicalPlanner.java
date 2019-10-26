@@ -89,7 +89,6 @@ import static io.prestosql.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.prestosql.spi.statistics.TableStatisticType.ROW_COUNT;
 import static io.prestosql.spi.type.BigintType.BIGINT;
 import static io.prestosql.spi.type.VarbinaryType.VARBINARY;
-import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toSqlType;
 import static io.prestosql.sql.planner.plan.AggregationNode.singleGroupingSet;
 import static io.prestosql.sql.planner.plan.TableWriterNode.CreateReference;
 import static io.prestosql.sql.planner.plan.TableWriterNode.InsertReference;
@@ -331,7 +330,7 @@ public class LogicalPlanner
             Symbol output = symbolAllocator.newSymbol(column.getName(), column.getType());
             int index = insert.getColumns().indexOf(columns.get(column.getName()));
             if (index < 0) {
-                Expression cast = new Cast(new NullLiteral(), toSqlType(column.getType()));
+                Expression cast = new Cast(new NullLiteral(), column.getType().getTypeSignature().toString());
                 assignments.put(output, cast);
             }
             else {
@@ -343,7 +342,7 @@ public class LogicalPlanner
                     assignments.put(output, input.toSymbolReference());
                 }
                 else {
-                    Expression cast = new Cast(input.toSymbolReference(), toSqlType(tableType));
+                    Expression cast = new Cast(input.toSymbolReference(), tableType.getTypeSignature().toString());
                     assignments.put(output, cast);
                 }
             }

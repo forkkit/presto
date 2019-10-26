@@ -16,8 +16,6 @@ package io.prestosql.orc;
 import com.google.common.collect.Ordering;
 import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
-import io.prestosql.orc.metadata.ColumnMetadata;
-import io.prestosql.orc.metadata.OrcColumnId;
 import io.prestosql.orc.metadata.statistics.BloomFilter;
 import io.prestosql.orc.metadata.statistics.ColumnStatistics;
 import io.prestosql.spi.type.ArrayType;
@@ -35,6 +33,7 @@ import io.prestosql.spi.type.VarcharType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -127,9 +126,9 @@ public final class TestingOrcPredicate
         }
 
         @Override
-        public boolean matches(long numberOfRows, ColumnMetadata<ColumnStatistics> allColumnStatistics)
+        public boolean matches(long numberOfRows, Map<Integer, ColumnStatistics> statisticsByColumnIndex)
         {
-            ColumnStatistics columnStatistics = allColumnStatistics.get(new OrcColumnId(1));
+            ColumnStatistics columnStatistics = statisticsByColumnIndex.get(0);
             assertTrue(columnStatistics.hasNumberOfValues());
 
             if (numberOfRows == expectedValues.size()) {

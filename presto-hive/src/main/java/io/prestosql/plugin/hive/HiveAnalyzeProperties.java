@@ -16,7 +16,7 @@ package io.prestosql.plugin.hive;
 import com.google.common.collect.ImmutableList;
 import io.prestosql.spi.PrestoException;
 import io.prestosql.spi.session.PropertyMetadata;
-import io.prestosql.spi.type.ArrayType;
+import io.prestosql.spi.type.TypeManager;
 
 import javax.inject.Inject;
 
@@ -30,7 +30,7 @@ import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static io.prestosql.plugin.hive.HivePartitionKey.HIVE_DEFAULT_DYNAMIC_PARTITION;
 import static io.prestosql.spi.StandardErrorCode.INVALID_ANALYZE_PROPERTY;
-import static io.prestosql.spi.type.VarcharType.VARCHAR;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 
 public class HiveAnalyzeProperties
 {
@@ -39,13 +39,13 @@ public class HiveAnalyzeProperties
     private final List<PropertyMetadata<?>> analyzeProperties;
 
     @Inject
-    public HiveAnalyzeProperties()
+    public HiveAnalyzeProperties(TypeManager typeManager)
     {
         analyzeProperties = ImmutableList.of(
                 new PropertyMetadata<>(
                         PARTITIONS_PROPERTY,
                         "Partitions to be analyzed",
-                        new ArrayType(new ArrayType(VARCHAR)),
+                        typeManager.getType(parseTypeSignature("array(array(varchar))")),
                         List.class,
                         null,
                         false,

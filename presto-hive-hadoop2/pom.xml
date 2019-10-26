@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.prestosql</groupId>
         <artifactId>presto-root</artifactId>
-        <version>324-SNAPSHOT</version>
+        <version>321-SNAPSHOT</version>
     </parent>
 
     <artifactId>presto-hive-hadoop2</artifactId>
@@ -27,7 +27,6 @@
             <artifactId>guava</artifactId>
         </dependency>
 
-        <!-- used by tests but also needed transitively -->
         <dependency>
             <groupId>io.prestosql.hadoop</groupId>
             <artifactId>hadoop-apache</artifactId>
@@ -48,15 +47,15 @@
         </dependency>
 
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-annotations</artifactId>
+            <groupId>io.airlift</groupId>
+            <artifactId>units</artifactId>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
-            <groupId>org.alluxio</groupId>
-            <artifactId>alluxio-shaded-client</artifactId>
-            <scope>runtime</scope>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>

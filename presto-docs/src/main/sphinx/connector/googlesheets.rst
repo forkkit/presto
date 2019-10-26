@@ -82,8 +82,7 @@ address of the service account.
 The sheet needs to be mapped to a Presto table name. Specify a table name
 (column A) and the sheet ID (column B) in the metadata sheet. To refer
 to a specific tab in the sheet, add the tab name after the sheet ID, separated
-with ``#``. If tab name is not provided, connector loads only 10,000 rows by default from
-the first tab in the sheet.
+with ``#``.
 
 API Usage Limits
 ----------------

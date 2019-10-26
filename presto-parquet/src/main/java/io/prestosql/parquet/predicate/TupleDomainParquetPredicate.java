@@ -104,23 +104,26 @@ public class TupleDomainParquetPredicate
     }
 
     @Override
-    public boolean matches(DictionaryDescriptor dictionary)
+    public boolean matches(Map<ColumnDescriptor, DictionaryDescriptor> dictionaries)
     {
-        requireNonNull(dictionary, "dictionary is null");
         if (effectivePredicate.isNone()) {
             return false;
         }
         Map<ColumnDescriptor, Domain> effectivePredicateDomains = effectivePredicate.getDomains()
                 .orElseThrow(() -> new IllegalStateException("Effective predicate other than none should have domains"));
 
-        Domain effectivePredicateDomain = effectivePredicateDomains.get(dictionary.getColumnDescriptor());
-
-        return effectivePredicateDomain == null || effectivePredicateMatches(effectivePredicateDomain, dictionary);
-    }
-
-    private static boolean effectivePredicateMatches(Domain effectivePredicateDomain, DictionaryDescriptor dictionary)
-    {
-        return !effectivePredicateDomain.intersect(getDomain(effectivePredicateDomain.getType(), dictionary)).isNone();
+        for (RichColumnDescriptor column : columns) {
+            Domain effectivePredicateDomain = effectivePredicateDomains.get(column);
+            if (effectivePredicateDomain == null) {
+                continue;
+            }
+            DictionaryDescriptor dictionaryDescriptor = dictionaries.get(column);
+            Domain domain = getDomain(effectivePredicateDomain.getType(), dictionaryDescriptor);
+            if (effectivePredicateDomain.intersect(domain).isNone()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @VisibleForTesting
@@ -144,8 +147,8 @@ public class TupleDomainParquetPredicate
         if (type.equals(BOOLEAN) && statistics instanceof BooleanStatistics) {
             BooleanStatistics booleanStatistics = (BooleanStatistics) statistics;
 
-            boolean hasTrueValues = booleanStatistics.getMin() || booleanStatistics.getMax();
-            boolean hasFalseValues = !booleanStatistics.getMin() || !booleanStatistics.getMax();
+            boolean hasTrueValues = !(booleanStatistics.getMax() == false && booleanStatistics.getMin() == false);
+            boolean hasFalseValues = !(booleanStatistics.getMax() == true && booleanStatistics.getMin() == true);
             if (hasTrueValues && hasFalseValues) {
                 return Domain.all(type);
             }
@@ -257,7 +260,7 @@ public class TupleDomainParquetPredicate
         }
 
         int dictionarySize = dictionaryPage.get().getDictionarySize();
-        if (type.equals(BIGINT) && columnDescriptor.getPrimitiveType().getPrimitiveTypeName() == PrimitiveTypeName.INT64) {
+        if (type.equals(BIGINT) && columnDescriptor.getType() == PrimitiveTypeName.INT64) {
             List<Domain> domains = new ArrayList<>();
             for (int i = 0; i < dictionarySize; i++) {
                 domains.add(Domain.singleValue(type, dictionary.decodeToLong(i)));
@@ -266,7 +269,7 @@ public class TupleDomainParquetPredicate
             return Domain.union(domains);
         }
 
-        if ((type.equals(BIGINT) || type.equals(DATE)) && columnDescriptor.getPrimitiveType().getPrimitiveTypeName() == PrimitiveTypeName.INT32) {
+        if ((type.equals(BIGINT) || type.equals(DATE)) && columnDescriptor.getType() == PrimitiveTypeName.INT32) {
             List<Domain> domains = new ArrayList<>();
             for (int i = 0; i < dictionarySize; i++) {
                 domains.add(Domain.singleValue(type, (long) dictionary.decodeToInt(i)));
@@ -275,7 +278,7 @@ public class TupleDomainParquetPredicate
             return Domain.union(domains);
         }
 
-        if (type.equals(DOUBLE) && columnDescriptor.getPrimitiveType().getPrimitiveTypeName() == PrimitiveTypeName.DOUBLE) {
+        if (type.equals(DOUBLE) && columnDescriptor.getType() == PrimitiveTypeName.DOUBLE) {
             List<Domain> domains = new ArrayList<>();
             for (int i = 0; i < dictionarySize; i++) {
                 domains.add(Domain.singleValue(type, dictionary.decodeToDouble(i)));
@@ -284,7 +287,7 @@ public class TupleDomainParquetPredicate
             return Domain.union(domains);
         }
 
-        if (type.equals(DOUBLE) && columnDescriptor.getPrimitiveType().getPrimitiveTypeName() == PrimitiveTypeName.FLOAT) {
+        if (type.equals(DOUBLE) && columnDescriptor.getType() == PrimitiveTypeName.FLOAT) {
             List<Domain> domains = new ArrayList<>();
             for (int i = 0; i < dictionarySize; i++) {
                 domains.add(Domain.singleValue(type, (double) dictionary.decodeToFloat(i)));
@@ -293,7 +296,7 @@ public class TupleDomainParquetPredicate
             return Domain.union(domains);
         }
 
-        if (isVarcharType(type) && columnDescriptor.getPrimitiveType().getPrimitiveTypeName() == PrimitiveTypeName.BINARY) {
+        if (isVarcharType(type) && columnDescriptor.getType() == PrimitiveTypeName.BINARY) {
             List<Domain> domains = new ArrayList<>();
             for (int i = 0; i < dictionarySize; i++) {
                 domains.add(Domain.singleValue(type, Slices.wrappedBuffer(dictionary.decodeToBinary(i).getBytes())));

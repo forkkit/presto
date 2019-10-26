@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.airlift.units.DataSize;
+import io.airlift.units.Duration;
 import io.prestosql.Session;
 import io.prestosql.dispatcher.DispatchManager;
 import io.prestosql.plugin.resourcegroups.ResourceGroupManagerPlugin;
@@ -30,8 +31,6 @@ import org.testng.annotations.Test;
 import java.util.Optional;
 import java.util.Set;
 
-import static io.airlift.units.DataSize.Unit.MEGABYTE;
-import static io.airlift.units.DataSize.Unit.TERABYTE;
 import static io.prestosql.SystemSessionProperties.HASH_PARTITION_COUNT;
 import static io.prestosql.execution.QueryState.FAILED;
 import static io.prestosql.execution.QueryState.FINISHED;
@@ -227,25 +226,25 @@ public class TestQueues
             assertResourceGroup(
                     queryRunner,
                     newSessionWithResourceEstimates(new ResourceEstimates(
-                            Optional.of(java.time.Duration.ofMinutes(4)),
+                            Optional.of(Duration.valueOf("4m")),
                             Optional.empty(),
-                            Optional.of(new DataSize(400, MEGABYTE).toBytes()))),
+                            Optional.of(DataSize.valueOf("400MB")))),
                     LONG_LASTING_QUERY,
                     createResourceGroupId("global", "small"));
 
             assertResourceGroup(
                     queryRunner,
                     newSessionWithResourceEstimates(new ResourceEstimates(
-                            Optional.of(java.time.Duration.ofMinutes(4)),
+                            Optional.of(Duration.valueOf("4m")),
                             Optional.empty(),
-                            Optional.of(new DataSize(600, MEGABYTE).toBytes()))),
+                            Optional.of(DataSize.valueOf("600MB")))),
                     LONG_LASTING_QUERY,
                     createResourceGroupId("global", "other"));
 
             assertResourceGroup(
                     queryRunner,
                     newSessionWithResourceEstimates(new ResourceEstimates(
-                            Optional.of(java.time.Duration.ofMinutes(4)),
+                            Optional.of(Duration.valueOf("4m")),
                             Optional.empty(),
                             Optional.empty())),
                     LONG_LASTING_QUERY,
@@ -254,18 +253,18 @@ public class TestQueues
             assertResourceGroup(
                     queryRunner,
                     newSessionWithResourceEstimates(new ResourceEstimates(
-                            Optional.of(java.time.Duration.ofSeconds(1)),
-                            Optional.of(java.time.Duration.ofSeconds(1)),
-                            Optional.of(new DataSize(6, TERABYTE).toBytes()))),
+                            Optional.of(Duration.valueOf("1s")),
+                            Optional.of(Duration.valueOf("1s")),
+                            Optional.of(DataSize.valueOf("6TB")))),
                     LONG_LASTING_QUERY,
                     createResourceGroupId("global", "huge_memory"));
 
             assertResourceGroup(
                     queryRunner,
                     newSessionWithResourceEstimates(new ResourceEstimates(
-                            Optional.of(java.time.Duration.ofHours(100)),
+                            Optional.of(Duration.valueOf("100h")),
                             Optional.empty(),
-                            Optional.of(new DataSize(4, TERABYTE).toBytes()))),
+                            Optional.of(DataSize.valueOf("4TB")))),
                     LONG_LASTING_QUERY,
                     createResourceGroupId("global", "other"));
         }

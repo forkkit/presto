@@ -28,6 +28,7 @@ import io.prestosql.spi.block.LazyBlockLoader;
 import io.prestosql.spi.block.RunLengthEncodedBlock;
 import io.prestosql.spi.connector.ConnectorPageSource;
 import io.prestosql.spi.type.Type;
+import io.prestosql.spi.type.TypeManager;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,10 +58,11 @@ public class RcFilePageSource
 
     private boolean closed;
 
-    public RcFilePageSource(RcFileReader rcFileReader, List<HiveColumnHandle> columns)
+    public RcFilePageSource(RcFileReader rcFileReader, List<HiveColumnHandle> columns, TypeManager typeManager)
     {
         requireNonNull(rcFileReader, "rcReader is null");
         requireNonNull(columns, "columns is null");
+        requireNonNull(typeManager, "typeManager is null");
 
         this.rcFileReader = rcFileReader;
 
@@ -75,8 +77,11 @@ public class RcFilePageSource
         for (int columnIndex = 0; columnIndex < columns.size(); columnIndex++) {
             HiveColumnHandle column = columns.get(columnIndex);
 
-            namesBuilder.add(column.getName());
-            typesBuilder.add(column.getType());
+            String name = column.getName();
+            Type type = typeManager.getType(column.getTypeSignature());
+
+            namesBuilder.add(name);
+            typesBuilder.add(type);
             hiveTypesBuilder.add(column.getHiveType());
 
             hiveColumnIndexes[columnIndex] = column.getHiveColumnIndex();
@@ -84,7 +89,7 @@ public class RcFilePageSource
             if (hiveColumnIndexes[columnIndex] >= rcFileReader.getColumnCount()) {
                 // this file may contain fewer fields than what's declared in the schema
                 // this happens when additional columns are added to the hive table after files have been created
-                BlockBuilder blockBuilder = column.getType().createBlockBuilder(null, 1, NULL_ENTRY_SIZE);
+                BlockBuilder blockBuilder = type.createBlockBuilder(null, 1, NULL_ENTRY_SIZE);
                 blockBuilder.appendNull();
                 constantBlocks[columnIndex] = blockBuilder.build();
             }
@@ -204,7 +209,7 @@ public class RcFilePageSource
     }
 
     private final class RcFileBlockLoader
-            implements LazyBlockLoader
+            implements LazyBlockLoader<LazyBlock>
     {
         private final int expectedBatchId = pageId;
         private final int columnIndex;
@@ -216,14 +221,14 @@ public class RcFilePageSource
         }
 
         @Override
-        public final Block load()
+        public final void load(LazyBlock lazyBlock)
         {
             checkState(!loaded, "Already loaded");
             checkState(pageId == expectedBatchId);
 
-            Block block;
             try {
-                block = rcFileReader.readBlock(columnIndex);
+                Block block = rcFileReader.readBlock(columnIndex);
+                lazyBlock.setBlock(block);
             }
             catch (RcFileCorruptionException e) {
                 throw new PrestoException(HIVE_BAD_DATA, format("Corrupted RC file: %s", rcFileReader.getId()), e);
@@ -233,7 +238,6 @@ public class RcFilePageSource
             }
 
             loaded = true;
-            return block;
         }
     }
 }

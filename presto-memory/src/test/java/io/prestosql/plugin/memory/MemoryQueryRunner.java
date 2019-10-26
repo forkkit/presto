@@ -48,10 +48,7 @@ public final class MemoryQueryRunner
                 .setSchema("default")
                 .build();
 
-        DistributedQueryRunner queryRunner = DistributedQueryRunner.builder(session)
-                .setNodeCount(4)
-                .setExtraProperties(extraProperties)
-                .build();
+        DistributedQueryRunner queryRunner = new DistributedQueryRunner(session, 4, extraProperties);
 
         try {
             queryRunner.installPlugin(new MemoryPlugin());

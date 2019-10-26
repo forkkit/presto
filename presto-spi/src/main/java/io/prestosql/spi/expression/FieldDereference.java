@@ -15,8 +15,6 @@ package io.prestosql.spi.expression;
 
 import io.prestosql.spi.type.Type;
 
-import java.util.Objects;
-
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
@@ -41,28 +39,6 @@ public class FieldDereference
     public int getField()
     {
         return field;
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(target, field, getType());
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        FieldDereference that = (FieldDereference) o;
-        return Objects.equals(target, that.target)
-                && Objects.equals(field, that.field)
-                && Objects.equals(getType(), that.getType());
     }
 
     @Override

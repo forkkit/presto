@@ -15,7 +15,7 @@ package io.prestosql.operator.aggregation;
 
 import com.google.common.collect.ImmutableList;
 import io.prestosql.spi.block.Block;
-import io.prestosql.spi.type.Type;
+import io.prestosql.spi.type.StandardTypes;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.testng.annotations.Test;
 
@@ -24,7 +24,6 @@ import java.util.List;
 import static com.google.common.base.Preconditions.checkArgument;
 import static io.prestosql.block.BlockAssertions.createDoubleSequenceBlock;
 import static io.prestosql.block.BlockAssertions.createDoublesBlock;
-import static io.prestosql.spi.type.DoubleType.DOUBLE;
 
 public class TestDoubleRegrSlopeAggregation
         extends AbstractTestAggregationFunction
@@ -42,9 +41,9 @@ public class TestDoubleRegrSlopeAggregation
     }
 
     @Override
-    protected List<Type> getFunctionParameterTypes()
+    protected List<String> getFunctionParameterTypes()
     {
-        return ImmutableList.of(DOUBLE, DOUBLE);
+        return ImmutableList.of(StandardTypes.DOUBLE, StandardTypes.DOUBLE);
     }
 
     @Override

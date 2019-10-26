@@ -136,7 +136,7 @@ public class TestPrestoDriverUri
     }
 
     @Test
-    public void testUriWithSocksProxy()
+    void testUriWithSocksProxy()
             throws SQLException
     {
         PrestoDriverUri parameters = createDriverUri("presto://localhost:8080?socksProxy=localhost:1234");
@@ -147,7 +147,7 @@ public class TestPrestoDriverUri
     }
 
     @Test
-    public void testUriWithHttpProxy()
+    void testUriWithHttpProxy()
             throws SQLException
     {
         PrestoDriverUri parameters = createDriverUri("presto://localhost:8080?httpProxy=localhost:5678");

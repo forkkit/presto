@@ -17,7 +17,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Primitives;
 import io.prestosql.metadata.BoundVariables;
 import io.prestosql.metadata.FunctionKind;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlScalarFunction;
@@ -34,8 +33,7 @@ import static io.prestosql.operator.scalar.ScalarFunctionImplementation.Argument
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.ArgumentProperty.valueTypeArgumentProperty;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.NullConvention.RETURN_NULL_ON_NULL;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.NullConvention.USE_BOXED_TYPE;
-import static io.prestosql.spi.type.TypeSignature.arrayType;
-import static io.prestosql.spi.type.TypeSignature.functionType;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.spi.type.TypeUtils.readNativeValue;
 import static io.prestosql.util.Reflection.methodHandle;
 
@@ -48,22 +46,32 @@ public final class ArrayReduceFunction
 
     private ArrayReduceFunction()
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        "reduce",
-                        FunctionKind.SCALAR,
-                        ImmutableList.of(typeVariable("T"), typeVariable("S"), typeVariable("R")),
-                        ImmutableList.of(),
-                        new TypeSignature("R"),
-                        ImmutableList.of(
-                                arrayType(new TypeSignature("T")),
-                                new TypeSignature("S"),
-                                functionType(new TypeSignature("S"), new TypeSignature("T"), new TypeSignature("S")),
-                                functionType(new TypeSignature("S"), new TypeSignature("R"))),
-                        false),
-                false,
-                false,
-                "Reduce elements of the array into a single value"));
+        super(new Signature(
+                "reduce",
+                FunctionKind.SCALAR,
+                ImmutableList.of(typeVariable("T"), typeVariable("S"), typeVariable("R")),
+                ImmutableList.of(),
+                new TypeSignature("R"),
+                ImmutableList.of(parseTypeSignature("array(T)"), new TypeSignature("S"), parseTypeSignature("function(S,T,S)"), parseTypeSignature("function(S,R)")),
+                false));
+    }
+
+    @Override
+    public boolean isHidden()
+    {
+        return false;
+    }
+
+    @Override
+    public boolean isDeterministic()
+    {
+        return false;
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "Reduce elements of the array into a single value";
     }
 
     @Override
@@ -83,7 +91,8 @@ public final class ArrayReduceFunction
                 methodHandle.asType(
                         methodHandle.type()
                                 .changeParameterType(1, Primitives.wrap(intermediateType.getJavaType()))
-                                .changeReturnType(Primitives.wrap(outputType.getJavaType()))));
+                                .changeReturnType(Primitives.wrap(outputType.getJavaType()))),
+                isDeterministic());
     }
 
     public static Object reduce(

@@ -19,12 +19,11 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.airlift.json.ObjectMapperProvider;
 import io.airlift.slice.Slice;
-import io.prestosql.metadata.MetadataManager;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.FunctionKind;
+import io.prestosql.metadata.Signature;
 import io.prestosql.server.SliceDeserializer;
 import io.prestosql.server.SliceSerializer;
 import io.prestosql.spi.block.SortOrder;
-import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.sql.Serialization;
 import io.prestosql.sql.parser.SqlParser;
 import io.prestosql.sql.planner.OrderingScheme;
@@ -33,9 +32,7 @@ import io.prestosql.sql.planner.SymbolAllocator;
 import io.prestosql.sql.tree.Expression;
 import io.prestosql.sql.tree.FrameBound;
 import io.prestosql.sql.tree.FunctionCall;
-import io.prestosql.sql.tree.QualifiedName;
 import io.prestosql.sql.tree.WindowFrame;
-import io.prestosql.type.TypeSignatureDeserializer;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -44,14 +41,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
-import static io.prestosql.metadata.MetadataManager.createTestMetadataManager;
 import static io.prestosql.spi.type.BigintType.BIGINT;
-import static io.prestosql.sql.analyzer.TypeSignatureProvider.fromTypes;
 import static org.testng.Assert.assertEquals;
 
 public class TestWindowNode
 {
-    private final MetadataManager metadata = createTestMetadataManager();
     private SymbolAllocator symbolAllocator;
     private ValuesNode sourceNode;
     private Symbol columnA;
@@ -71,8 +65,7 @@ public class TestWindowNode
         provider.setJsonDeserializers(ImmutableMap.of(
                 Slice.class, new SliceDeserializer(),
                 Expression.class, new Serialization.ExpressionDeserializer(sqlParser),
-                FunctionCall.class, new Serialization.FunctionCallDeserializer(sqlParser),
-                TypeSignature.class, new TypeSignatureDeserializer()));
+                FunctionCall.class, new Serialization.FunctionCallDeserializer(sqlParser)));
         objectMapper = provider.get();
     }
 
@@ -95,7 +88,14 @@ public class TestWindowNode
             throws Exception
     {
         Symbol windowSymbol = symbolAllocator.newSymbol("sum", BIGINT);
-        ResolvedFunction resolvedFunction = metadata.resolveFunction(QualifiedName.of("sum"), fromTypes(BIGINT));
+        Signature signature = new Signature(
+                "sum",
+                FunctionKind.WINDOW,
+                ImmutableList.of(),
+                ImmutableList.of(),
+                BIGINT.getTypeSignature(),
+                ImmutableList.of(BIGINT.getTypeSignature()),
+                false);
         WindowNode.Frame frame = new WindowNode.Frame(
                 WindowFrame.Type.RANGE,
                 FrameBound.Type.UNBOUNDED_PRECEDING,
@@ -111,7 +111,7 @@ public class TestWindowNode
                 Optional.of(new OrderingScheme(
                         ImmutableList.of(columnB),
                         ImmutableMap.of(columnB, SortOrder.ASC_NULLS_FIRST))));
-        Map<Symbol, WindowNode.Function> functions = ImmutableMap.of(windowSymbol, new WindowNode.Function(resolvedFunction, ImmutableList.of(columnC.toSymbolReference()), frame, false));
+        Map<Symbol, WindowNode.Function> functions = ImmutableMap.of(windowSymbol, new WindowNode.Function(signature, ImmutableList.of(columnC.toSymbolReference()), frame, false));
         Optional<Symbol> hashSymbol = Optional.of(columnB);
         Set<Symbol> prePartitionedInputs = ImmutableSet.of(columnA);
         WindowNode windowNode = new WindowNode(

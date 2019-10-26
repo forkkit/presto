@@ -27,7 +27,6 @@ import io.airlift.bytecode.control.IfStatement;
 import io.airlift.bytecode.expression.BytecodeExpression;
 import io.prestosql.metadata.BoundVariables;
 import io.prestosql.metadata.FunctionKind;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlScalarFunction;
@@ -59,7 +58,7 @@ import static io.prestosql.metadata.Signature.typeVariable;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.ArgumentProperty.valueTypeArgumentProperty;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.NullConvention.USE_BOXED_TYPE;
 import static io.prestosql.spi.StandardErrorCode.NOT_SUPPORTED;
-import static io.prestosql.spi.type.TypeSignature.arrayType;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.sql.gen.SqlTypeBytecodeExpression.constantType;
 import static io.prestosql.util.CompilerUtils.defineClass;
 import static io.prestosql.util.CompilerUtils.makeClassName;
@@ -74,18 +73,32 @@ public final class ArrayConstructor
 
     public ArrayConstructor()
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        "array_constructor",
-                        FunctionKind.SCALAR,
-                        ImmutableList.of(typeVariable("E")),
-                        ImmutableList.of(),
-                        arrayType(new TypeSignature("E")),
-                        ImmutableList.of(new TypeSignature("E"), new TypeSignature("E")),
-                        true),
-                true,
-                true,
-                ""));
+        super(new Signature("array_constructor",
+                FunctionKind.SCALAR,
+                ImmutableList.of(typeVariable("E")),
+                ImmutableList.of(),
+                parseTypeSignature("array(E)"),
+                ImmutableList.of(new TypeSignature("E"), new TypeSignature("E")),
+                true));
+    }
+
+    @Override
+    public boolean isHidden()
+    {
+        return true;
+    }
+
+    @Override
+    public boolean isDeterministic()
+    {
+        return true;
+    }
+
+    @Override
+    public String getDescription()
+    {
+        // Internal function, doesn't need a description
+        return null;
     }
 
     @Override
@@ -116,7 +129,8 @@ public final class ArrayConstructor
         return new ScalarFunctionImplementation(
                 false,
                 nCopies(stackTypes.size(), valueTypeArgumentProperty(USE_BOXED_TYPE)),
-                methodHandle);
+                methodHandle,
+                isDeterministic());
     }
 
     private static Class<?> generateArrayConstructor(List<Class<?>> stackTypes, Type elementType)

@@ -31,26 +31,30 @@ import static java.util.Objects.requireNonNull;
 public final class ScalarFunctionImplementation
 {
     private final List<ScalarImplementationChoice> choices;
+    private final boolean deterministic;
 
     public ScalarFunctionImplementation(
             boolean nullable,
             List<ArgumentProperty> argumentProperties,
-            MethodHandle methodHandle)
+            MethodHandle methodHandle,
+            boolean deterministic)
     {
         this(
                 nullable,
                 argumentProperties,
                 methodHandle,
-                Optional.empty());
+                Optional.empty(),
+                deterministic);
     }
 
     public ScalarFunctionImplementation(
             boolean nullable,
             List<ArgumentProperty> argumentProperties,
             MethodHandle methodHandle,
-            Optional<MethodHandle> instanceFactory)
+            Optional<MethodHandle> instanceFactory,
+            boolean deterministic)
     {
-        this(ImmutableList.of(new ScalarImplementationChoice(nullable, argumentProperties, methodHandle, instanceFactory)));
+        this(ImmutableList.of(new ScalarImplementationChoice(nullable, argumentProperties, methodHandle, instanceFactory)), deterministic);
     }
 
     /**
@@ -62,10 +66,11 @@ public final class ScalarFunctionImplementation
      *
      * @param choices the list of choices, ordered from generic to specific
      */
-    public ScalarFunctionImplementation(List<ScalarImplementationChoice> choices)
+    public ScalarFunctionImplementation(List<ScalarImplementationChoice> choices, boolean deterministic)
     {
         checkArgument(!choices.isEmpty(), "choices is an empty list");
         this.choices = ImmutableList.copyOf(choices);
+        this.deterministic = deterministic;
     }
 
     public boolean isNullable()
@@ -91,6 +96,11 @@ public final class ScalarFunctionImplementation
     public List<ScalarImplementationChoice> getAllChoices()
     {
         return choices;
+    }
+
+    public boolean isDeterministic()
+    {
+        return deterministic;
     }
 
     public static class ScalarImplementationChoice

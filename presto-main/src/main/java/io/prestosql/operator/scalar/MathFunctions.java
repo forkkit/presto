@@ -399,7 +399,7 @@ public final class MathFunctions
         return Math.floor(num);
     }
 
-    @ScalarFunction("floor")
+    @ScalarFunction(value = "floor")
     @Description("round down to nearest integer")
     public static final class Floor
     {

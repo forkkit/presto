@@ -16,9 +16,7 @@ package io.prestosql.operator.aggregation.minmaxby;
 import com.google.common.collect.ImmutableList;
 import io.airlift.bytecode.DynamicClassLoader;
 import io.prestosql.metadata.BoundVariables;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlAggregationFunction;
 import io.prestosql.operator.aggregation.AbstractMinMaxNAggregationFunction;
 import io.prestosql.operator.aggregation.AccumulatorCompiler;
@@ -41,7 +39,6 @@ import java.util.Optional;
 import java.util.function.Function;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
-import static io.prestosql.metadata.FunctionKind.AGGREGATE;
 import static io.prestosql.metadata.Signature.orderableTypeParameter;
 import static io.prestosql.metadata.Signature.typeVariable;
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata.ParameterType.BLOCK_INDEX;
@@ -52,6 +49,7 @@ import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMet
 import static io.prestosql.operator.aggregation.AggregationUtils.generateAggregationName;
 import static io.prestosql.spi.StandardErrorCode.INVALID_FUNCTION_ARGUMENT;
 import static io.prestosql.spi.type.BigintType.BIGINT;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.util.Failures.checkCondition;
 import static io.prestosql.util.Reflection.methodHandle;
 import static java.lang.Math.toIntExact;
@@ -68,20 +66,13 @@ public abstract class AbstractMinMaxByNAggregationFunction
     private final String name;
     private final Function<Type, BlockComparator> typeToComparator;
 
-    protected AbstractMinMaxByNAggregationFunction(String name, Function<Type, BlockComparator> typeToComparator, String description)
+    protected AbstractMinMaxByNAggregationFunction(String name, Function<Type, BlockComparator> typeToComparator)
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        name,
-                        AGGREGATE,
-                        ImmutableList.of(typeVariable("V"), orderableTypeParameter("K")),
-                        ImmutableList.of(),
-                        TypeSignature.arrayType(new TypeSignature("V")),
-                        ImmutableList.of(new TypeSignature("V"), new TypeSignature("K"), BIGINT.getTypeSignature()),
-                        false),
-                false,
-                true,
-                description));
+        super(name,
+                ImmutableList.of(typeVariable("V"), orderableTypeParameter("K")),
+                ImmutableList.of(),
+                parseTypeSignature("array(V)"),
+                ImmutableList.of(new TypeSignature("V"), new TypeSignature("K"), BIGINT.getTypeSignature()));
         this.name = requireNonNull(name, "name is null");
         this.typeToComparator = requireNonNull(typeToComparator, "typeToComparator is null");
     }

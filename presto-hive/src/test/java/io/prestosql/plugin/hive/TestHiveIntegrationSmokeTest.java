@@ -14,13 +14,10 @@
 package io.prestosql.plugin.hive;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Files;
-import io.airlift.json.JsonCodec;
-import io.airlift.json.JsonCodecFactory;
-import io.airlift.json.ObjectMapperProvider;
 import io.prestosql.Session;
+import io.prestosql.connector.CatalogName;
 import io.prestosql.cost.StatsAndCosts;
 import io.prestosql.metadata.InsertTableHandle;
 import io.prestosql.metadata.Metadata;
@@ -29,12 +26,15 @@ import io.prestosql.metadata.TableHandle;
 import io.prestosql.metadata.TableMetadata;
 import io.prestosql.spi.connector.CatalogSchemaTableName;
 import io.prestosql.spi.connector.ColumnMetadata;
+import io.prestosql.spi.connector.ConnectorSession;
 import io.prestosql.spi.connector.Constraint;
 import io.prestosql.spi.security.Identity;
 import io.prestosql.spi.security.SelectedRole;
 import io.prestosql.spi.type.DateType;
+import io.prestosql.spi.type.IntegerType;
 import io.prestosql.spi.type.TimestampType;
 import io.prestosql.spi.type.Type;
+import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.sql.planner.Plan;
 import io.prestosql.sql.planner.plan.ExchangeNode;
 import io.prestosql.sql.planner.planprinter.IoPlanPrinter.ColumnConstraint;
@@ -48,7 +48,6 @@ import io.prestosql.testing.MaterializedResult;
 import io.prestosql.testing.MaterializedRow;
 import io.prestosql.tests.AbstractTestIntegrationSmokeTest;
 import io.prestosql.tests.DistributedQueryRunner;
-import io.prestosql.type.TypeDeserializer;
 import org.apache.hadoop.fs.Path;
 import org.intellij.lang.annotations.Language;
 import org.testng.annotations.Test;
@@ -76,6 +75,7 @@ import static com.google.common.io.Files.asCharSink;
 import static com.google.common.io.Files.createTempDir;
 import static com.google.common.io.MoreFiles.deleteRecursively;
 import static com.google.common.io.RecursiveDeleteOption.ALLOW_INSECURE;
+import static io.airlift.json.JsonCodec.jsonCodec;
 import static io.airlift.tpch.TpchTable.CUSTOMER;
 import static io.airlift.tpch.TpchTable.ORDERS;
 import static io.prestosql.SystemSessionProperties.COLOCATED_JOIN;
@@ -104,7 +104,6 @@ import static io.prestosql.spi.type.BooleanType.BOOLEAN;
 import static io.prestosql.spi.type.CharType.createCharType;
 import static io.prestosql.spi.type.DecimalType.createDecimalType;
 import static io.prestosql.spi.type.DoubleType.DOUBLE;
-import static io.prestosql.spi.type.IntegerType.INTEGER;
 import static io.prestosql.spi.type.SmallintType.SMALLINT;
 import static io.prestosql.spi.type.TinyintType.TINYINT;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
@@ -176,7 +175,7 @@ public class TestHiveIntegrationSmokeTest
     }
 
     @Test
-    public void testIoExplain()
+    public void testIOExplain()
     {
         // Test IO explain with small number of discrete components.
         computeActual("CREATE TABLE test_orders WITH (partitioned_by = ARRAY['orderkey', 'processing']) AS SELECT custkey, orderkey, orderstatus = 'P' processing FROM orders WHERE orderkey < 3");
@@ -184,7 +183,7 @@ public class TestHiveIntegrationSmokeTest
         EstimatedStatsAndCost estimate = new EstimatedStatsAndCost(2.0, 40.0, 40.0, 0.0, 0.0);
         MaterializedResult result = computeActual("EXPLAIN (TYPE IO, FORMAT JSON) INSERT INTO test_orders SELECT custkey, orderkey, processing FROM test_orders WHERE custkey <= 10");
         assertEquals(
-                getIoPlanCodec().fromJson((String) getOnlyElement(result.getOnlyColumnAsSet())),
+                jsonCodec(IoPlan.class).fromJson((String) getOnlyElement(result.getOnlyColumnAsSet())),
                 new IoPlan(
                         ImmutableSet.of(
                                 new TableColumnInfo(
@@ -192,7 +191,7 @@ public class TestHiveIntegrationSmokeTest
                                         ImmutableSet.of(
                                                 new ColumnConstraint(
                                                         "orderkey",
-                                                        BIGINT,
+                                                        BIGINT.getTypeSignature(),
                                                         new FormattedDomain(
                                                                 false,
                                                                 ImmutableSet.of(
@@ -204,7 +203,7 @@ public class TestHiveIntegrationSmokeTest
                                                                                 new FormattedMarker(Optional.of("2"), EXACTLY))))),
                                                 new ColumnConstraint(
                                                         "processing",
-                                                        BOOLEAN,
+                                                        BOOLEAN.getTypeSignature(),
                                                         new FormattedDomain(
                                                                 false,
                                                                 ImmutableSet.of(
@@ -223,7 +222,7 @@ public class TestHiveIntegrationSmokeTest
         estimate = new EstimatedStatsAndCost(55.0, 990.0, 990.0, 0.0, 0.0);
         result = computeActual("EXPLAIN (TYPE IO, FORMAT JSON) INSERT INTO test_orders SELECT custkey, orderkey + 10 FROM test_orders WHERE custkey <= 10");
         assertEquals(
-                getIoPlanCodec().fromJson((String) getOnlyElement(result.getOnlyColumnAsSet())),
+                jsonCodec(IoPlan.class).fromJson((String) getOnlyElement(result.getOnlyColumnAsSet())),
                 new IoPlan(
                         ImmutableSet.of(
                                 new TableColumnInfo(
@@ -231,7 +230,7 @@ public class TestHiveIntegrationSmokeTest
                                         ImmutableSet.of(
                                                 new ColumnConstraint(
                                                         "orderkey",
-                                                        BIGINT,
+                                                        BIGINT.getTypeSignature(),
                                                         new FormattedDomain(
                                                                 false,
                                                                 ImmutableSet.of(
@@ -254,7 +253,7 @@ public class TestHiveIntegrationSmokeTest
         data.put("foo", new TypeAndEstimate(createUnboundedVarcharType(), new EstimatedStatsAndCost(1.0, 16.0, 16.0, 0.0, 0.0)));
         data.put(Byte.toString((byte) (Byte.MAX_VALUE / 2)), new TypeAndEstimate(TINYINT, new EstimatedStatsAndCost(1.0, 10.0, 10.0, 0.0, 0.0)));
         data.put(Short.toString((short) (Short.MAX_VALUE / 2)), new TypeAndEstimate(SMALLINT, new EstimatedStatsAndCost(1.0, 11.0, 11.0, 0.0, 0.0)));
-        data.put(Integer.toString(Integer.MAX_VALUE / 2), new TypeAndEstimate(INTEGER, new EstimatedStatsAndCost(1.0, 13.0, 13.0, 0.0, 0.0)));
+        data.put(Integer.toString(Integer.MAX_VALUE / 2), new TypeAndEstimate(IntegerType.INTEGER, new EstimatedStatsAndCost(1.0, 13.0, 13.0, 0.0, 0.0)));
         data.put(Long.toString(Long.MAX_VALUE / 2), new TypeAndEstimate(BIGINT, new EstimatedStatsAndCost(1.0, 17.0, 17.0, 0.0, 0.0)));
         data.put(Boolean.TRUE.toString(), new TypeAndEstimate(BOOLEAN, new EstimatedStatsAndCost(1.0, 10.0, 10.0, 0.0, 0.0)));
         data.put("bar", new TypeAndEstimate(createCharType(3), new EstimatedStatsAndCost(1.0, 16.0, 16.0, 0.0, 0.0)));
@@ -275,14 +274,14 @@ public class TestHiveIntegrationSmokeTest
 
             assertUpdate(query, 1);
             assertEquals(
-                    getIoPlanCodec().fromJson((String) getOnlyElement(computeActual("EXPLAIN (TYPE IO, FORMAT JSON) SELECT * FROM test_types_table").getOnlyColumnAsSet())),
+                    jsonCodec(IoPlan.class).fromJson((String) getOnlyElement(computeActual("EXPLAIN (TYPE IO, FORMAT JSON) SELECT * FROM test_types_table").getOnlyColumnAsSet())),
                     new IoPlan(
                             ImmutableSet.of(new TableColumnInfo(
                                     new CatalogSchemaTableName(catalog, "tpch", "test_types_table"),
                                     ImmutableSet.of(
                                             new ColumnConstraint(
                                                     "my_col",
-                                                    type,
+                                                    type.getTypeSignature(),
                                                     new FormattedDomain(
                                                             false,
                                                             ImmutableSet.of(
@@ -1593,45 +1592,6 @@ public class TestHiveIntegrationSmokeTest
     }
 
     @Test
-    public void testInsertUnicode()
-    {
-        testWithAllStorageFormats(this::testInsertUnicode);
-    }
-
-    private void testInsertUnicode(Session session, HiveStorageFormat storageFormat)
-    {
-        assertUpdate(session, "DROP TABLE IF EXISTS test_insert_unicode");
-        assertUpdate(session, "CREATE TABLE test_insert_unicode(test varchar) WITH (format = '" + storageFormat + "')");
-
-        assertUpdate("INSERT INTO test_insert_unicode(test) VALUES 'Hello', U&'hello\\6d4B\\8Bd5\\+10FFFFworld\\7F16\\7801' ", 2);
-        assertThat(computeActual("SELECT test FROM test_insert_unicode").getOnlyColumnAsSet())
-                .containsExactlyInAnyOrder("Hello", "hello测试􏿿world编码");
-        assertUpdate(session, "DELETE FROM test_insert_unicode");
-
-        assertUpdate(session, "INSERT INTO test_insert_unicode(test) VALUES 'Hello', U&'hello\\6d4B\\8Bd5\\+10FFFFworld\\7F16\\7801' ", 2);
-        assertThat(computeActual(session, "SELECT test FROM test_insert_unicode").getOnlyColumnAsSet())
-                .containsExactlyInAnyOrder("Hello", "hello测试􏿿world编码");
-        assertUpdate(session, "DELETE FROM test_insert_unicode");
-
-        assertUpdate(session, "INSERT INTO test_insert_unicode(test) VALUES 'aa', 'bé'", 2);
-        assertQuery(session, "SELECT test FROM test_insert_unicode", "VALUES 'aa', 'bé'");
-        assertQuery(session, "SELECT test FROM test_insert_unicode WHERE test = 'aa'", "VALUES 'aa'");
-        assertQuery(session, "SELECT test FROM test_insert_unicode WHERE test > 'ba'", "VALUES 'bé'");
-        assertQuery(session, "SELECT test FROM test_insert_unicode WHERE test < 'ba'", "VALUES 'aa'");
-        assertQueryReturnsEmptyResult(session, "SELECT test FROM test_insert_unicode WHERE test = 'ba'");
-        assertUpdate(session, "DELETE FROM test_insert_unicode");
-
-        assertUpdate(session, "INSERT INTO test_insert_unicode(test) VALUES 'a', 'é'", 2);
-        assertQuery(session, "SELECT test FROM test_insert_unicode", "VALUES 'a', 'é'");
-        assertQuery(session, "SELECT test FROM test_insert_unicode WHERE test = 'a'", "VALUES 'a'");
-        assertQuery(session, "SELECT test FROM test_insert_unicode WHERE test > 'b'", "VALUES 'é'");
-        assertQuery(session, "SELECT test FROM test_insert_unicode WHERE test < 'b'", "VALUES 'a'");
-        assertQueryReturnsEmptyResult(session, "SELECT test FROM test_insert_unicode WHERE test = 'b'");
-
-        assertUpdate(session, "DROP TABLE test_insert_unicode");
-    }
-
-    @Test
     public void testPartitionPerScanLimit()
     {
         TestingHiveStorageFormat storageFormat = new TestingHiveStorageFormat(getSession(), HiveStorageFormat.ORC);
@@ -1949,14 +1909,14 @@ public class TestHiveIntegrationSmokeTest
         MaterializedResult actual = computeActual("SHOW COLUMNS FROM test_show_columns_partition_key");
         Type unboundedVarchar = canonicalizeType(VARCHAR);
         MaterializedResult expected = resultBuilder(getSession(), unboundedVarchar, unboundedVarchar, unboundedVarchar, unboundedVarchar)
-                .row("grape", canonicalizeType(BIGINT).toString(), "", "")
-                .row("orange", canonicalizeType(BIGINT).toString(), "", "")
-                .row("pear", canonicalizeType(createVarcharType(65535)).toString(), "", "")
-                .row("mango", canonicalizeType(INTEGER).toString(), "", "")
-                .row("lychee", canonicalizeType(SMALLINT).toString(), "", "")
-                .row("kiwi", canonicalizeType(TINYINT).toString(), "", "")
-                .row("apple", canonicalizeType(VARCHAR).toString(), "partition key", "")
-                .row("pineapple", canonicalizeType(createVarcharType(65535)).toString(), "partition key", "")
+                .row("grape", canonicalizeTypeName("bigint"), "", "")
+                .row("orange", canonicalizeTypeName("bigint"), "", "")
+                .row("pear", canonicalizeTypeName("varchar(65535)"), "", "")
+                .row("mango", canonicalizeTypeName("integer"), "", "")
+                .row("lychee", canonicalizeTypeName("smallint"), "", "")
+                .row("kiwi", canonicalizeTypeName("tinyint"), "", "")
+                .row("apple", canonicalizeTypeName("varchar"), "partition key", "")
+                .row("pineapple", canonicalizeTypeName("varchar(65535)"), "partition key", "")
                 .build();
         assertEquals(actual, expected);
     }
@@ -2186,7 +2146,6 @@ public class TestHiveIntegrationSmokeTest
                         "WITH (\n" +
                         "   bucket_count = 5,\n" +
                         "   bucketed_by = ARRAY['c1','c 2'],\n" +
-                        "   bucketing_version = 1,\n" +
                         "   format = 'ORC',\n" +
                         "   orc_bloom_filter_columns = ARRAY['c1','c2'],\n" +
                         "   orc_bloom_filter_fpp = 7E-1,\n" +
@@ -3003,7 +2962,7 @@ public class TestHiveIntegrationSmokeTest
                     ImmutableSet.of(
                             new ColumnConstraint(
                                     "k",
-                                    VARCHAR,
+                                    VARCHAR.getTypeSignature(),
                                     new FormattedDomain(
                                             false,
                                             ImmutableSet.of(
@@ -3018,7 +2977,7 @@ public class TestHiveIntegrationSmokeTest
                     ImmutableSet.of(
                             new ColumnConstraint(
                                     "k",
-                                    VARCHAR,
+                                    VARCHAR.getTypeSignature(),
                                     new FormattedDomain(
                                             false,
                                             ImmutableSet.of(
@@ -3036,7 +2995,7 @@ public class TestHiveIntegrationSmokeTest
                     ImmutableSet.of(
                             new ColumnConstraint(
                                     "k",
-                                    VARCHAR,
+                                    VARCHAR.getTypeSignature(),
                                     new FormattedDomain(
                                             false,
                                             ImmutableSet.of(
@@ -3062,7 +3021,7 @@ public class TestHiveIntegrationSmokeTest
                     ImmutableSet.of(
                             new ColumnConstraint(
                                     "k",
-                                    VARCHAR,
+                                    VARCHAR.getTypeSignature(),
                                     new FormattedDomain(
                                             false,
                                             ImmutableSet.of(
@@ -4600,6 +4559,12 @@ public class TestHiveIntegrationSmokeTest
         return TYPE_MANAGER.getType(hiveType.getTypeSignature());
     }
 
+    private String canonicalizeTypeName(String type)
+    {
+        TypeSignature typeSignature = TypeSignature.parseTypeSignature(type);
+        return canonicalizeType(TYPE_MANAGER.getType(typeSignature)).toString();
+    }
+
     private void assertColumnType(TableMetadata tableMetadata, String columnName, Type expectedType)
     {
         assertEquals(tableMetadata.getColumn(columnName).getType(), canonicalizeType(expectedType));
@@ -4608,7 +4573,7 @@ public class TestHiveIntegrationSmokeTest
     private void assertConstraints(@Language("SQL") String query, Set<ColumnConstraint> expected)
     {
         MaterializedResult result = computeActual("EXPLAIN (TYPE IO, FORMAT JSON) " + query);
-        Set<ColumnConstraint> constraints = getIoPlanCodec().fromJson((String) getOnlyElement(result.getOnlyColumnAsSet()))
+        Set<ColumnConstraint> constraints = jsonCodec(IoPlan.class).fromJson((String) getOnlyElement(result.getOnlyColumnAsSet()))
                 .getInputTableColumnInfos().stream()
                 .findFirst().get()
                 .getColumnConstraints();
@@ -4639,6 +4604,11 @@ public class TestHiveIntegrationSmokeTest
     private static class RollbackException
             extends RuntimeException
     {
+    }
+
+    private static ConnectorSession getConnectorSession(Session session)
+    {
+        return session.toConnectorSession(new CatalogName(session.getCatalog().get()));
     }
 
     private void testWithAllStorageFormats(BiConsumer<Session, HiveStorageFormat> test)
@@ -4673,13 +4643,6 @@ public class TestHiveIntegrationSmokeTest
             formats.add(new TestingHiveStorageFormat(session, hiveStorageFormat));
         }
         return formats.build();
-    }
-
-    private JsonCodec<IoPlan> getIoPlanCodec()
-    {
-        ObjectMapperProvider objectMapperProvider = new ObjectMapperProvider();
-        objectMapperProvider.setJsonDeserializers(ImmutableMap.of(Type.class, new TypeDeserializer(getQueryRunner().getMetadata())));
-        return new JsonCodecFactory(objectMapperProvider).jsonCodec(IoPlan.class);
     }
 
     private static class TestingHiveStorageFormat

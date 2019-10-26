@@ -13,8 +13,7 @@
  */
 package io.prestosql.orc;
 
-import com.google.common.collect.ImmutableList;
-import io.prestosql.spi.Page;
+import com.google.common.collect.ImmutableMap;
 import io.prestosql.spi.block.Block;
 import io.prestosql.spi.type.DecimalType;
 import io.prestosql.spi.type.SqlDecimal;
@@ -73,8 +72,9 @@ public class BenchmarkOrcDecimalReader
     {
         OrcRecordReader recordReader = data.createRecordReader();
         List<Block> blocks = new ArrayList<>();
-        for (Page page = recordReader.nextPage(); page != null; page = recordReader.nextPage()) {
-            blocks.add(page.getBlock(0).getLoadedBlock());
+        while (recordReader.nextBatch() > 0) {
+            Block block = recordReader.readBlock(0);
+            blocks.add(block);
         }
         return blocks;
     }
@@ -117,13 +117,11 @@ public class BenchmarkOrcDecimalReader
             OrcDataSource dataSource = new FileOrcDataSource(dataPath, READER_OPTIONS);
             OrcReader orcReader = new OrcReader(dataSource, READER_OPTIONS);
             return orcReader.createRecordReader(
-                    orcReader.getRootColumn().getNestedColumns(),
-                    ImmutableList.of(DECIMAL_TYPE),
+                    ImmutableMap.of(0, DECIMAL_TYPE),
                     OrcPredicate.TRUE,
                     DateTimeZone.UTC, // arbitrary
                     newSimpleAggregatedMemoryContext(),
-                    INITIAL_BATCH_SIZE,
-                    RuntimeException::new);
+                    INITIAL_BATCH_SIZE);
         }
 
         private List<SqlDecimal> createDecimalValues()

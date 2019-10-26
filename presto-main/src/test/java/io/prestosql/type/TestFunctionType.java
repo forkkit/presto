@@ -13,14 +13,11 @@
  */
 package io.prestosql.type;
 
-import com.google.common.collect.ImmutableList;
-import io.prestosql.spi.type.RowType;
 import io.prestosql.spi.type.Type;
+import io.prestosql.spi.type.TypeSignature;
 import org.testng.annotations.Test;
 
-import static io.prestosql.spi.type.BigintType.BIGINT;
-import static io.prestosql.spi.type.DoubleType.DOUBLE;
-import static io.prestosql.spi.type.RowType.field;
+import static io.prestosql.metadata.MetadataManager.createTestMetadataManager;
 import static org.testng.Assert.assertEquals;
 
 public class TestFunctionType
@@ -28,10 +25,7 @@ public class TestFunctionType
     @Test
     public void testDisplayName()
     {
-        Type function = new FunctionType(
-                ImmutableList.of(RowType.from(ImmutableList.of(field("field", DOUBLE)))),
-                BIGINT);
-
+        Type function = createTestMetadataManager().getType(TypeSignature.parseTypeSignature("function(row(field double),bigint)"));
         assertEquals(function.getDisplayName(), "function(row(field double),bigint)");
     }
 }

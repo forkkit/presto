@@ -52,7 +52,7 @@ public final class CentralMomentsAggregation
         mergeCentralMomentsState(state, otherState);
     }
 
-    @AggregationFunction("skewness")
+    @AggregationFunction(value = "skewness")
     @Description("Returns the skewness of the argument")
     @OutputFunction(StandardTypes.DOUBLE)
     public static void skewness(@AggregationState CentralMomentsState state, BlockBuilder out)
@@ -68,7 +68,7 @@ public final class CentralMomentsAggregation
         }
     }
 
-    @AggregationFunction("kurtosis")
+    @AggregationFunction(value = "kurtosis")
     @Description("Returns the (excess) kurtosis of the argument")
     @OutputFunction(StandardTypes.DOUBLE)
     public static void kurtosis(@AggregationState CentralMomentsState state, BlockBuilder out)

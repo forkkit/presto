@@ -75,7 +75,6 @@ import static io.prestosql.spi.type.VarbinaryType.VARBINARY;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
 import static io.prestosql.sql.ExpressionUtils.and;
 import static io.prestosql.sql.ExpressionUtils.or;
-import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toSqlType;
 import static io.prestosql.sql.tree.BooleanLiteral.FALSE_LITERAL;
 import static io.prestosql.sql.tree.BooleanLiteral.TRUE_LITERAL;
 import static io.prestosql.sql.tree.ComparisonExpression.Operator.EQUAL;
@@ -162,7 +161,7 @@ public class TestDomainTranslator
     {
         metadata = createTestMetadataManager();
         literalEncoder = new LiteralEncoder(metadata);
-        domainTranslator = new DomainTranslator(metadata);
+        domainTranslator = new DomainTranslator(literalEncoder);
     }
 
     @AfterClass(alwaysRun = true)
@@ -644,35 +643,35 @@ public class TestDomainTranslator
     }
 
     @Test
-    public void testNonImplicitCastOnSymbolSide()
+    void testNonImplictCastOnSymbolSide()
     {
         // we expect TupleDomain.all here().
         // see comment in DomainTranslator.Visitor.visitComparisonExpression()
         assertUnsupportedPredicate(equal(
-                new Cast(C_TIMESTAMP.toSymbolReference(), toSqlType(DATE)),
+                new Cast(C_TIMESTAMP.toSymbolReference(), DATE.toString()),
                 toExpression(DATE_VALUE, DATE)));
         assertUnsupportedPredicate(equal(
-                new Cast(C_DECIMAL_12_2.toSymbolReference(), toSqlType(BIGINT)),
+                new Cast(C_DECIMAL_12_2.toSymbolReference(), BIGINT.toString()),
                 bigintLiteral(135L)));
     }
 
     @Test
-    public void testNoSaturatedFloorCastFromUnsupportedApproximateDomain()
+    void testNoSaturatedFloorCastFromUnsupportedApproximateDomain()
     {
         assertUnsupportedPredicate(equal(
-                new Cast(C_DECIMAL_12_2.toSymbolReference(), toSqlType(DOUBLE)),
+                new Cast(C_DECIMAL_12_2.toSymbolReference(), DOUBLE.toString()),
                 toExpression(12345.56, DOUBLE)));
 
         assertUnsupportedPredicate(equal(
-                new Cast(C_BIGINT.toSymbolReference(), toSqlType(DOUBLE)),
+                new Cast(C_BIGINT.toSymbolReference(), DOUBLE.toString()),
                 toExpression(12345.56, DOUBLE)));
 
         assertUnsupportedPredicate(equal(
-                new Cast(C_BIGINT.toSymbolReference(), toSqlType(REAL)),
+                new Cast(C_BIGINT.toSymbolReference(), REAL.toString()),
                 toExpression(realValue(12345.56f), REAL)));
 
         assertUnsupportedPredicate(equal(
-                new Cast(C_INTEGER.toSymbolReference(), toSqlType(REAL)),
+                new Cast(C_INTEGER.toSymbolReference(), REAL.toString()),
                 toExpression(realValue(12345.56f), REAL)));
     }
 
@@ -1029,7 +1028,7 @@ public class TestDomainTranslator
     }
 
     @Test
-    public void testMultipleCoercionsOnSymbolSide()
+    void testMultipleCoercionsOnSymbolSide()
     {
         assertPredicateTranslates(
                 comparison(GREATER_THAN, cast(cast(C_SMALLINT, REAL), DOUBLE), doubleLiteral(3.7)),
@@ -1396,7 +1395,7 @@ public class TestDomainTranslator
 
     private static Expression cast(Expression expression, Type type)
     {
-        return new Cast(expression, toSqlType(type));
+        return new Cast(expression, type.getTypeSignature().toString());
     }
 
     private Expression colorLiteral(long value)

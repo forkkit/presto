@@ -35,13 +35,14 @@ import java.util.OptionalInt;
 import static com.google.common.base.Preconditions.checkArgument;
 import static io.prestosql.spi.StandardErrorCode.INVALID_SESSION_PROPERTY;
 import static io.prestosql.spi.session.PropertyMetadata.booleanProperty;
+import static io.prestosql.spi.session.PropertyMetadata.dataSizeProperty;
+import static io.prestosql.spi.session.PropertyMetadata.durationProperty;
 import static io.prestosql.spi.session.PropertyMetadata.enumProperty;
 import static io.prestosql.spi.session.PropertyMetadata.integerProperty;
 import static io.prestosql.spi.session.PropertyMetadata.stringProperty;
 import static io.prestosql.spi.type.BigintType.BIGINT;
 import static io.prestosql.spi.type.BooleanType.BOOLEAN;
 import static io.prestosql.spi.type.IntegerType.INTEGER;
-import static io.prestosql.spi.type.VarcharType.VARCHAR;
 import static io.prestosql.sql.analyzer.FeaturesConfig.JoinReorderingStrategy.ELIMINATE_CROSS_JOINS;
 import static io.prestosql.sql.analyzer.FeaturesConfig.JoinReorderingStrategy.NONE;
 import static java.lang.Math.min;
@@ -116,7 +117,6 @@ public final class SystemSessionProperties
     public static final String DEFAULT_FILTER_FACTOR_ENABLED = "default_filter_factor_enabled";
     public static final String UNWRAP_CASTS = "unwrap_casts";
     public static final String SKIP_REDUNDANT_SORT = "skip_redundant_sort";
-    public static final String PREDICATE_PUSHDOWN_USE_TABLE_PROPERTIES = "predicate_pushdown_use_table_properties";
     public static final String WORK_PROCESSOR_PIPELINES = "work_processor_pipelines";
     public static final String ENABLE_DYNAMIC_FILTERING = "enable_dynamic_filtering";
     public static final String QUERY_MAX_MEMORY_PER_NODE = "query_max_memory_per_node";
@@ -505,11 +505,6 @@ public final class SystemSessionProperties
                         SKIP_REDUNDANT_SORT,
                         "Skip redundant sort operations",
                         featuresConfig.isSkipRedundantSort(),
-                        false),
-                booleanProperty(
-                        PREDICATE_PUSHDOWN_USE_TABLE_PROPERTIES,
-                        "Use table properties in predicate pushdown",
-                        featuresConfig.isPredicatePushdownUseTableProperties(),
                         false),
                 booleanProperty(
                         WORK_PROCESSOR_PIPELINES,
@@ -926,11 +921,6 @@ public final class SystemSessionProperties
         return session.getSystemProperty(SKIP_REDUNDANT_SORT, Boolean.class);
     }
 
-    public static boolean isPredicatePushdownUseTableProperties(Session session)
-    {
-        return session.getSystemProperty(PREDICATE_PUSHDOWN_USE_TABLE_PROPERTIES, Boolean.class);
-    }
-
     public static boolean isWorkProcessorPipelines(Session session)
     {
         return session.getSystemProperty(WORK_PROCESSOR_PIPELINES, Boolean.class);
@@ -959,31 +949,5 @@ public final class SystemSessionProperties
     public static DataSize getDynamicFilteringMaxPerDriverSize(Session session)
     {
         return session.getSystemProperty(DYNAMIC_FILTERING_MAX_PER_DRIVER_SIZE, DataSize.class);
-    }
-
-    private static PropertyMetadata<DataSize> dataSizeProperty(String name, String description, DataSize defaultValue, boolean hidden)
-    {
-        return new PropertyMetadata<>(
-                name,
-                description,
-                VARCHAR,
-                DataSize.class,
-                defaultValue,
-                hidden,
-                value -> DataSize.valueOf((String) value),
-                DataSize::toString);
-    }
-
-    private static PropertyMetadata<Duration> durationProperty(String name, String description, Duration defaultValue, boolean hidden)
-    {
-        return new PropertyMetadata<>(
-                name,
-                description,
-                VARCHAR,
-                Duration.class,
-                defaultValue,
-                hidden,
-                value -> Duration.valueOf((String) value),
-                Duration::toString);
     }
 }

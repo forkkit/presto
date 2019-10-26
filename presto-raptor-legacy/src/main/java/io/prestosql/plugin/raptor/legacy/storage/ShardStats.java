@@ -13,14 +13,12 @@
  */
 package io.prestosql.plugin.raptor.legacy.storage;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import io.airlift.slice.Slice;
-import io.prestosql.orc.OrcColumn;
 import io.prestosql.orc.OrcPredicate;
 import io.prestosql.orc.OrcReader;
 import io.prestosql.orc.OrcRecordReader;
 import io.prestosql.plugin.raptor.legacy.metadata.ColumnStats;
-import io.prestosql.spi.Page;
 import io.prestosql.spi.PrestoException;
 import io.prestosql.spi.block.Block;
 import io.prestosql.spi.type.BigintType;
@@ -70,44 +68,36 @@ public final class ShardStats
     private static ColumnStats doComputeColumnStats(OrcReader orcReader, long columnId, Type type, TypeManager typeManager)
             throws IOException
     {
-        OrcColumn column = getColumn(orcReader.getRootColumn().getNestedColumns(), columnId);
-        Type columnType = toOrcFileType(type, typeManager);
-        OrcRecordReader reader = orcReader.createRecordReader(
-                ImmutableList.of(column),
-                ImmutableList.of(columnType),
-                OrcPredicate.TRUE,
-                UTC,
-                newSimpleAggregatedMemoryContext(),
-                INITIAL_BATCH_SIZE,
-                exception -> new PrestoException(RAPTOR_ERROR, "Error reading column: " + columnId, exception));
+        int columnIndex = columnIndex(orcReader.getColumnNames(), columnId);
+        OrcRecordReader reader = orcReader.createRecordReader(ImmutableMap.of(columnIndex, toOrcFileType(type, typeManager)), OrcPredicate.TRUE, UTC, newSimpleAggregatedMemoryContext(), INITIAL_BATCH_SIZE);
 
         if (type.equals(BooleanType.BOOLEAN)) {
-            return indexBoolean(reader, columnId);
+            return indexBoolean(reader, columnIndex, columnId);
         }
         if (type.equals(BigintType.BIGINT) ||
                 type.equals(DateType.DATE) ||
                 type.equals(TimestampType.TIMESTAMP)) {
-            return indexLong(type, reader, columnId);
+            return indexLong(type, reader, columnIndex, columnId);
         }
         if (type.equals(DoubleType.DOUBLE)) {
-            return indexDouble(reader, columnId);
+            return indexDouble(reader, columnIndex, columnId);
         }
         if (type instanceof VarcharType) {
-            return indexString(type, reader, columnId);
+            return indexString(type, reader, columnIndex, columnId);
         }
         return null;
     }
 
-    private static OrcColumn getColumn(List<OrcColumn> columnNames, long columnId)
+    private static int columnIndex(List<String> columnNames, long columnId)
     {
-        String columnName = String.valueOf(columnId);
-        return columnNames.stream()
-                .filter(column -> column.getColumnName().equals(columnName))
-                .findFirst()
-                .orElseThrow(() -> new PrestoException(RAPTOR_ERROR, "Missing column ID: " + columnId));
+        int index = columnNames.indexOf(String.valueOf(columnId));
+        if (index == -1) {
+            throw new PrestoException(RAPTOR_ERROR, "Missing column ID: " + columnId);
+        }
+        return index;
     }
 
-    private static ColumnStats indexBoolean(OrcRecordReader reader, long columnId)
+    private static ColumnStats indexBoolean(OrcRecordReader reader, int columnIndex, long columnId)
             throws IOException
     {
         boolean minSet = false;
@@ -116,13 +106,13 @@ public final class ShardStats
         boolean max = false;
 
         while (true) {
-            Page page = reader.nextPage();
-            if (page == null) {
+            int batchSize = reader.nextBatch();
+            if (batchSize <= 0) {
                 break;
             }
-            Block block = page.getBlock(0).getLoadedBlock();
+            Block block = reader.readBlock(columnIndex);
 
-            for (int i = 0; i < page.getPositionCount(); i++) {
+            for (int i = 0; i < batchSize; i++) {
                 if (block.isNull(i)) {
                     continue;
                 }
@@ -143,7 +133,7 @@ public final class ShardStats
                 maxSet ? max : null);
     }
 
-    private static ColumnStats indexLong(Type type, OrcRecordReader reader, long columnId)
+    private static ColumnStats indexLong(Type type, OrcRecordReader reader, int columnIndex, long columnId)
             throws IOException
     {
         boolean minSet = false;
@@ -152,13 +142,13 @@ public final class ShardStats
         long max = 0;
 
         while (true) {
-            Page page = reader.nextPage();
-            if (page == null) {
+            int batchSize = reader.nextBatch();
+            if (batchSize <= 0) {
                 break;
             }
-            Block block = page.getBlock(0).getLoadedBlock();
+            Block block = reader.readBlock(columnIndex);
 
-            for (int i = 0; i < page.getPositionCount(); i++) {
+            for (int i = 0; i < batchSize; i++) {
                 if (block.isNull(i)) {
                     continue;
                 }
@@ -179,7 +169,7 @@ public final class ShardStats
                 maxSet ? max : null);
     }
 
-    private static ColumnStats indexDouble(OrcRecordReader reader, long columnId)
+    private static ColumnStats indexDouble(OrcRecordReader reader, int columnIndex, long columnId)
             throws IOException
     {
         boolean minSet = false;
@@ -188,13 +178,13 @@ public final class ShardStats
         double max = 0;
 
         while (true) {
-            Page page = reader.nextPage();
-            if (page == null) {
+            int batchSize = reader.nextBatch();
+            if (batchSize <= 0) {
                 break;
             }
-            Block block = page.getBlock(0).getLoadedBlock();
+            Block block = reader.readBlock(columnIndex);
 
-            for (int i = 0; i < page.getPositionCount(); i++) {
+            for (int i = 0; i < batchSize; i++) {
                 if (block.isNull(i)) {
                     continue;
                 }
@@ -228,7 +218,7 @@ public final class ShardStats
                 maxSet ? max : null);
     }
 
-    private static ColumnStats indexString(Type type, OrcRecordReader reader, long columnId)
+    private static ColumnStats indexString(Type type, OrcRecordReader reader, int columnIndex, long columnId)
             throws IOException
     {
         boolean minSet = false;
@@ -237,13 +227,13 @@ public final class ShardStats
         Slice max = null;
 
         while (true) {
-            Page page = reader.nextPage();
-            if (page == null) {
+            int batchSize = reader.nextBatch();
+            if (batchSize <= 0) {
                 break;
             }
-            Block block = page.getBlock(0).getLoadedBlock();
+            Block block = reader.readBlock(columnIndex);
 
-            for (int i = 0; i < page.getPositionCount(); i++) {
+            for (int i = 0; i < batchSize; i++) {
                 if (block.isNull(i)) {
                     continue;
                 }

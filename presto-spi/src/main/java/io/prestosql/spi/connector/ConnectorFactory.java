@@ -19,15 +19,7 @@ public interface ConnectorFactory
 {
     String getName();
 
-    /**
-     * Gets the default handle resolver for connectors created by this factory.
-     * Must return a non-null result when {@link Connector#getHandleResolver()}
-     * is not implemented (or it returns empty result).
-     */
-    default ConnectorHandleResolver getHandleResolver()
-    {
-        throw new UnsupportedOperationException();
-    }
+    ConnectorHandleResolver getHandleResolver();
 
     Connector create(String catalogName, Map<String, String> config, ConnectorContext context);
 }

@@ -15,7 +15,6 @@ package io.prestosql.operator.scalar;
 
 import com.google.common.collect.ImmutableList;
 import io.prestosql.metadata.BoundVariables;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlScalarFunction;
@@ -34,18 +33,33 @@ public final class JsonStringToRowCast
 
     private JsonStringToRowCast()
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        JSON_STRING_TO_ROW_NAME,
-                        SCALAR,
-                        ImmutableList.of(withVariadicBound("T", "row")),
-                        ImmutableList.of(),
-                        new TypeSignature("T"),
-                        ImmutableList.of(VARCHAR.getTypeSignature()),
-                        false),
-                true,
-                true,
-                ""));
+        super(new Signature(
+                JSON_STRING_TO_ROW_NAME,
+                SCALAR,
+                ImmutableList.of(withVariadicBound("T", "row")),
+                ImmutableList.of(),
+                new TypeSignature("T"),
+                ImmutableList.of(VARCHAR.getTypeSignature()),
+                false));
+    }
+
+    @Override
+    public String getDescription()
+    {
+        // Internal function, doesn't need a description
+        return null;
+    }
+
+    @Override
+    public boolean isDeterministic()
+    {
+        return true;
+    }
+
+    @Override
+    public final boolean isHidden()
+    {
+        return true;
     }
 
     @Override

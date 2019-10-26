@@ -21,11 +21,14 @@ import io.prestosql.orc.OrcReaderOptions;
 import io.prestosql.orc.OrcRecordReader;
 import io.prestosql.spi.Page;
 import io.prestosql.spi.PrestoException;
+import io.prestosql.spi.block.Block;
 import io.prestosql.spi.type.Type;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static io.prestosql.memory.context.AggregatedMemoryContext.newSimpleAggregatedMemoryContext;
 import static io.prestosql.orc.OrcReader.INITIAL_BATCH_SIZE;
@@ -36,25 +39,31 @@ import static org.joda.time.DateTimeZone.UTC;
 public class TempFileReader
         extends AbstractIterator<Page>
 {
+    private final int columnCount;
     private final OrcRecordReader reader;
 
     public TempFileReader(List<Type> types, OrcDataSource dataSource)
     {
         requireNonNull(types, "types is null");
+        this.columnCount = types.size();
 
         try {
             OrcReader orcReader = new OrcReader(dataSource, new OrcReaderOptions());
+
+            Map<Integer, Type> includedColumns = new HashMap<>();
+            for (int i = 0; i < types.size(); i++) {
+                includedColumns.put(i, types.get(i));
+            }
+
             reader = orcReader.createRecordReader(
-                    orcReader.getRootColumn().getNestedColumns(),
-                    types,
+                    includedColumns,
                     OrcPredicate.TRUE,
                     UTC,
                     newSimpleAggregatedMemoryContext(),
-                    INITIAL_BATCH_SIZE,
-                    TempFileReader::handleException);
+                    INITIAL_BATCH_SIZE);
         }
         catch (IOException e) {
-            throw handleException(e);
+            throw new PrestoException(HIVE_WRITER_DATA_ERROR, "Failed to read temporary data");
         }
     }
 
@@ -66,21 +75,19 @@ public class TempFileReader
                 throw new InterruptedIOException();
             }
 
-            Page page = reader.nextPage();
-            if (page == null) {
+            int batchSize = reader.nextBatch();
+            if (batchSize <= 0) {
                 return endOfData();
             }
 
-            // eagerly load the page
-            return page.getLoadedPage();
+            Block[] blocks = new Block[columnCount];
+            for (int i = 0; i < columnCount; i++) {
+                blocks[i] = reader.readBlock(i).getLoadedBlock();
+            }
+            return new Page(batchSize, blocks);
         }
         catch (IOException e) {
-            throw handleException(e);
+            throw new PrestoException(HIVE_WRITER_DATA_ERROR, "Failed to read temporary data");
         }
-    }
-
-    private static PrestoException handleException(Exception e)
-    {
-        return new PrestoException(HIVE_WRITER_DATA_ERROR, "Failed to read temporary data", e);
     }
 }

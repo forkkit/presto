@@ -30,6 +30,7 @@ import io.prestosql.spi.predicate.NullableValue;
 import io.prestosql.spi.predicate.TupleDomain;
 import io.prestosql.sql.planner.DomainTranslator;
 import io.prestosql.sql.planner.ExpressionInterpreter;
+import io.prestosql.sql.planner.LiteralEncoder;
 import io.prestosql.sql.planner.LookupSymbolResolver;
 import io.prestosql.sql.planner.PlanNodeIdAllocator;
 import io.prestosql.sql.planner.Symbol;
@@ -82,7 +83,7 @@ public class PushPredicateIntoTableScan
     {
         this.metadata = requireNonNull(metadata, "metadata is null");
         this.typeAnalyzer = requireNonNull(typeAnalyzer, "typeAnalyzer is null");
-        this.domainTranslator = new DomainTranslator(metadata);
+        this.domainTranslator = new DomainTranslator(new LiteralEncoder(metadata));
     }
 
     @Override
@@ -146,8 +147,8 @@ public class PushPredicateIntoTableScan
             DomainTranslator domainTranslator)
     {
         // don't include non-deterministic predicates
-        Expression deterministicPredicate = filterDeterministicConjuncts(metadata, predicate);
-        Expression nonDeterministicPredicate = filterNonDeterministicConjuncts(metadata, predicate);
+        Expression deterministicPredicate = filterDeterministicConjuncts(predicate);
+        Expression nonDeterministicPredicate = filterNonDeterministicConjuncts(predicate);
 
         DomainTranslator.ExtractionResult decomposedPredicate = DomainTranslator.fromPredicate(
                 metadata,
@@ -171,7 +172,6 @@ public class PushPredicateIntoTableScan
                     types,
                     node.getAssignments(),
                     combineConjuncts(
-                            metadata,
                             deterministicPredicate,
                             // Simplify the tuple domain to avoid creating an expression with too many nodes,
                             // which would be expensive to evaluate in the call to isCandidate below.
@@ -190,7 +190,6 @@ public class PushPredicateIntoTableScan
             // check if new domain is wider than domain already provided by table scan
             if (!constraint.predicate().isPresent() && newDomain.contains(node.getEnforcedConstraint())) {
                 Expression resultingPredicate = createResultingPredicate(
-                        metadata,
                         TRUE_LITERAL,
                         nonDeterministicPredicate,
                         decomposedPredicate.getRemainingExpression());
@@ -248,7 +247,6 @@ public class PushPredicateIntoTableScan
                 computeEnforced(newDomain, remainingFilter));
 
         Expression resultingPredicate = createResultingPredicate(
-                metadata,
                 domainTranslator.toPredicate(remainingFilter.transform(assignments::get)),
                 nonDeterministicPredicate,
                 decomposedPredicate.getRemainingExpression());
@@ -261,7 +259,6 @@ public class PushPredicateIntoTableScan
     }
 
     static Expression createResultingPredicate(
-            Metadata metadata,
             Expression unenforcedConstraints,
             Expression nonDeterministicPredicate,
             Expression remainingDecomposedPredicate)
@@ -274,7 +271,7 @@ public class PushPredicateIntoTableScan
         // * Short of implementing the previous bullet point, the current order of non-deterministic expressions
         //   and non-TupleDomain-expressible expressions should be retained. Changing the order can lead
         //   to failures of previously successful queries.
-        return combineConjuncts(metadata, unenforcedConstraints, nonDeterministicPredicate, remainingDecomposedPredicate);
+        return combineConjuncts(unenforcedConstraints, nonDeterministicPredicate, remainingDecomposedPredicate);
     }
 
     private static class LayoutConstraintEvaluator

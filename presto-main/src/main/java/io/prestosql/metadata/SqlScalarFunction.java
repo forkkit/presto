@@ -15,20 +15,25 @@ package io.prestosql.metadata;
 
 import io.prestosql.operator.scalar.ScalarFunctionImplementation;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static io.prestosql.metadata.FunctionKind.SCALAR;
+import static java.util.Objects.requireNonNull;
+
 public abstract class SqlScalarFunction
         implements SqlFunction
 {
-    private final FunctionMetadata functionMetadata;
+    private final Signature signature;
 
-    protected SqlScalarFunction(FunctionMetadata functionMetadata)
+    protected SqlScalarFunction(Signature signature)
     {
-        this.functionMetadata = functionMetadata;
+        this.signature = requireNonNull(signature, "signature is null");
+        checkArgument(signature.getKind() == SCALAR, "function kind must be SCALAR");
     }
 
     @Override
-    public FunctionMetadata getFunctionMetadata()
+    public final Signature getSignature()
     {
-        return functionMetadata;
+        return signature;
     }
 
     public abstract ScalarFunctionImplementation specialize(BoundVariables boundVariables, int arity, Metadata metadata);

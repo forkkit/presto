@@ -31,7 +31,7 @@ public interface Predicate
         }
 
         @Override
-        public boolean matches(DictionaryDescriptor dictionary)
+        public boolean matches(Map<ColumnDescriptor, DictionaryDescriptor> dictionaries)
         {
             return true;
         }
@@ -50,11 +50,9 @@ public interface Predicate
             throws ParquetCorruptionException;
 
     /**
-     * Should the Parquet Reader process a file section with the specified dictionary based on that
-     * single dictionary. This is safe to check repeatedly to avoid loading more parquet dictionaries
-     * if the section can already be eliminated.
+     * Should the Parquet Reader process a file section with the specified dictionary.
      *
-     * @param dictionary The single column dictionary
+     * @param dictionaries dictionaries per column
      */
-    boolean matches(DictionaryDescriptor dictionary);
+    boolean matches(Map<ColumnDescriptor, DictionaryDescriptor> dictionaries);
 }

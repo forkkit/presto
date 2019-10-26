@@ -13,15 +13,13 @@
  */
 package io.prestosql.sql.planner;
 
-import io.prestosql.metadata.FunctionMetadata;
-import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.ResolvedFunction;
+import com.google.common.collect.ImmutableSet;
 import io.prestosql.sql.tree.DefaultExpressionTraversalVisitor;
 import io.prestosql.sql.tree.Expression;
 import io.prestosql.sql.tree.FunctionCall;
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 import static java.util.Objects.requireNonNull;
 
@@ -32,40 +30,25 @@ public final class DeterminismEvaluator
 {
     private DeterminismEvaluator() {}
 
-    public static boolean isDeterministic(Expression expression, Metadata metadata)
+    public static boolean isDeterministic(Expression expression)
     {
-        return isDeterministic(
-                expression, functionCall -> {
-                    ResolvedFunction resolvedFunction = ResolvedFunction.fromQualifiedName(functionCall.getName())
-                            .orElseThrow(() -> new IllegalArgumentException("Function call is not resolved: " + functionCall));
-                    return metadata.getFunctionMetadata(resolvedFunction);
-                });
-    }
-
-    public static boolean isDeterministic(Expression expression, Function<FunctionCall, FunctionMetadata> functionMetadataSupplier)
-    {
-        requireNonNull(functionMetadataSupplier, "functionMetadataSupplier is null");
         requireNonNull(expression, "expression is null");
 
         AtomicBoolean deterministic = new AtomicBoolean(true);
-        new Visitor(functionMetadataSupplier).process(expression, deterministic);
+        new Visitor().process(expression, deterministic);
         return deterministic.get();
     }
 
     private static class Visitor
             extends DefaultExpressionTraversalVisitor<Void, AtomicBoolean>
     {
-        private final Function<FunctionCall, FunctionMetadata> functionMetadataSupplier;
-
-        public Visitor(Function<FunctionCall, FunctionMetadata> functionMetadataSupplier)
-        {
-            this.functionMetadataSupplier = functionMetadataSupplier;
-        }
+        private static final Set<String> FUNCTIONS = ImmutableSet.of("rand", "random", "shuffle", "uuid");
 
         @Override
         protected Void visitFunctionCall(FunctionCall node, AtomicBoolean deterministic)
         {
-            if (!functionMetadataSupplier.apply(node).isDeterministic()) {
+            // TODO: total hack to figure out if a function is deterministic. martint should fix this when he refactors the planning code
+            if (FUNCTIONS.contains(node.getName().toString())) {
                 deterministic.set(false);
             }
             return super.visitFunctionCall(node, deterministic);

@@ -59,11 +59,6 @@ class PluginClassLoader
         this.spiResources = ImmutableList.copyOf(spiResources);
     }
 
-    public PluginClassLoader duplicate()
-    {
-        return new PluginClassLoader(ImmutableList.copyOf(getURLs()), spiClassLoader, spiPackages, spiResources);
-    }
-
     @Override
     protected Class<?> loadClass(String name, boolean resolve)
             throws ClassNotFoundException

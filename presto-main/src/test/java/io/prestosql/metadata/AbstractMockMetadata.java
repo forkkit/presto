@@ -51,7 +51,6 @@ import io.prestosql.spi.statistics.TableStatistics;
 import io.prestosql.spi.statistics.TableStatisticsMetadata;
 import io.prestosql.spi.type.ParametricType;
 import io.prestosql.spi.type.Type;
-import io.prestosql.spi.type.TypeId;
 import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.sql.analyzer.TypeSignatureProvider;
 import io.prestosql.sql.planner.PartitioningHandle;
@@ -64,7 +63,6 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 
-import static io.prestosql.metadata.FunctionId.toFunctionId;
 import static io.prestosql.spi.StandardErrorCode.FUNCTION_NOT_FOUND;
 import static io.prestosql.spi.type.DoubleType.DOUBLE;
 
@@ -505,18 +503,6 @@ public abstract class AbstractMockMetadata
     }
 
     @Override
-    public Type fromSqlType(String sqlType)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Type getType(TypeId id)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void verifyComparableOrderableContract()
     {
         throw new UnsupportedOperationException();
@@ -545,7 +531,7 @@ public abstract class AbstractMockMetadata
     }
 
     @Override
-    public List<FunctionMetadata> listFunctions()
+    public List<SqlFunction> listFunctions()
     {
         throw new UnsupportedOperationException();
     }
@@ -557,31 +543,24 @@ public abstract class AbstractMockMetadata
     }
 
     @Override
-    public ResolvedFunction resolveFunction(QualifiedName name, List<TypeSignatureProvider> parameterTypes)
+    public Signature resolveFunction(QualifiedName name, List<TypeSignatureProvider> parameterTypes)
     {
         String nameSuffix = name.getSuffix();
         if (nameSuffix.equals("rand") && parameterTypes.isEmpty()) {
-            Signature boundSignature = new Signature(nameSuffix, FunctionKind.SCALAR, DOUBLE.getTypeSignature(), ImmutableList.of());
-            return new ResolvedFunction(boundSignature, toFunctionId(boundSignature));
+            return new Signature(nameSuffix, FunctionKind.SCALAR, DOUBLE.getTypeSignature(), ImmutableList.of());
         }
         throw new PrestoException(FUNCTION_NOT_FOUND, name + "(" + Joiner.on(", ").join(parameterTypes) + ")");
     }
 
     @Override
-    public ResolvedFunction resolveOperator(OperatorType operatorType, List<? extends Type> argumentTypes)
+    public Signature resolveOperator(OperatorType operatorType, List<? extends Type> argumentTypes)
             throws OperatorNotFoundException
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public ResolvedFunction getCoercion(OperatorType operatorType, Type fromType, Type toType)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ResolvedFunction getCoercion(QualifiedName name, Type fromType, Type toType)
+    public Signature getCoercion(Type fromType, Type toType)
     {
         throw new UnsupportedOperationException();
     }
@@ -593,29 +572,19 @@ public abstract class AbstractMockMetadata
     }
 
     @Override
-    public FunctionMetadata getFunctionMetadata(ResolvedFunction resolvedFunction)
-    {
-        Signature signature = resolvedFunction.getSignature();
-        if (signature.getName().equals("rand") && signature.getArgumentTypes().isEmpty()) {
-            return new FunctionMetadata(signature, false, false, "");
-        }
-        throw new PrestoException(FUNCTION_NOT_FOUND, signature.toString());
-    }
-
-    @Override
-    public WindowFunctionSupplier getWindowFunctionImplementation(ResolvedFunction resolvedFunction)
+    public WindowFunctionSupplier getWindowFunctionImplementation(Signature signature)
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public InternalAggregationFunction getAggregateFunctionImplementation(ResolvedFunction resolvedFunction)
+    public InternalAggregationFunction getAggregateFunctionImplementation(Signature signature)
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public ScalarFunctionImplementation getScalarFunctionImplementation(ResolvedFunction resolvedFunction)
+    public ScalarFunctionImplementation getScalarFunctionImplementation(Signature signature)
     {
         throw new UnsupportedOperationException();
     }

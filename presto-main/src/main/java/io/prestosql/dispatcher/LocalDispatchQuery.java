@@ -190,7 +190,7 @@ public class LocalDispatchQuery
     {
         return tryGetQueryExecution()
                 .map(QueryExecution::getTotalCpuTime)
-                .orElseGet(() -> new Duration(0, MILLISECONDS));
+                .orElse(new Duration(0, MILLISECONDS));
     }
 
     @Override
@@ -198,7 +198,7 @@ public class LocalDispatchQuery
     {
         return tryGetQueryExecution()
                 .map(QueryExecution::getTotalMemoryReservation)
-                .orElseGet(() -> new DataSize(0, BYTE));
+                .orElse(new DataSize(0, BYTE));
     }
 
     @Override
@@ -206,7 +206,7 @@ public class LocalDispatchQuery
     {
         return tryGetQueryExecution()
                 .map(QueryExecution::getUserMemoryReservation)
-                .orElseGet(() -> new DataSize(0, BYTE));
+                .orElse(new DataSize(0, BYTE));
     }
 
     @Override
@@ -214,7 +214,7 @@ public class LocalDispatchQuery
     {
         return tryGetQueryExecution()
                 .map(QueryExecution::getBasicQueryInfo)
-                .orElseGet(() -> stateMachine.getBasicQueryInfo(Optional.empty()));
+                .orElse(stateMachine.getBasicQueryInfo(Optional.empty()));
     }
 
     @Override
@@ -222,7 +222,7 @@ public class LocalDispatchQuery
     {
         return tryGetQueryExecution()
                 .map(QueryExecution::getQueryInfo)
-                .orElseGet(() -> stateMachine.updateQueryInfo(Optional.empty()));
+                .orElse(stateMachine.updateQueryInfo(Optional.empty()));
     }
 
     @Override

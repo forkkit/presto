@@ -83,7 +83,6 @@ import io.prestosql.spi.statistics.TableStatistics;
 import io.prestosql.spi.statistics.TableStatisticsMetadata;
 import io.prestosql.spi.type.ParametricType;
 import io.prestosql.spi.type.Type;
-import io.prestosql.spi.type.TypeId;
 import io.prestosql.spi.type.TypeNotFoundException;
 import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.sql.analyzer.FeaturesConfig;
@@ -1213,18 +1212,6 @@ public final class MetadataManager
     }
 
     @Override
-    public Type fromSqlType(String sqlType)
-    {
-        return typeRegistry.fromSqlType(new InternalTypeManager(this), sqlType);
-    }
-
-    @Override
-    public Type getType(TypeId id)
-    {
-        return typeRegistry.getType(new InternalTypeManager(this), id);
-    }
-
-    @Override
     public Collection<Type> getTypes()
     {
         return typeRegistry.getTypes();
@@ -1294,7 +1281,7 @@ public final class MetadataManager
     }
 
     @Override
-    public List<FunctionMetadata> listFunctions()
+    public List<SqlFunction> listFunctions()
     {
         return functions.list();
     }
@@ -1306,29 +1293,22 @@ public final class MetadataManager
     }
 
     @Override
-    public ResolvedFunction resolveFunction(QualifiedName name, List<TypeSignatureProvider> parameterTypes)
+    public Signature resolveFunction(QualifiedName name, List<TypeSignatureProvider> parameterTypes)
     {
-        return ResolvedFunction.fromQualifiedName(name)
-                .orElseGet(() -> functions.resolveFunction(name, parameterTypes));
+        return functions.resolveFunction(name, parameterTypes);
     }
 
     @Override
-    public ResolvedFunction resolveOperator(OperatorType operatorType, List<? extends Type> argumentTypes)
+    public Signature resolveOperator(OperatorType operatorType, List<? extends Type> argumentTypes)
             throws OperatorNotFoundException
     {
         return functions.resolveOperator(operatorType, argumentTypes);
     }
 
     @Override
-    public ResolvedFunction getCoercion(OperatorType operatorType, Type fromType, Type toType)
+    public Signature getCoercion(Type fromType, Type toType)
     {
-        return functions.getCoercion(operatorType, fromType, toType);
-    }
-
-    @Override
-    public ResolvedFunction getCoercion(QualifiedName name, Type fromType, Type toType)
-    {
-        return functions.getCoercion(name, fromType, toType);
+        return functions.getCoercion(fromType.getTypeSignature(), toType.getTypeSignature());
     }
 
     @Override
@@ -1338,27 +1318,21 @@ public final class MetadataManager
     }
 
     @Override
-    public FunctionMetadata getFunctionMetadata(ResolvedFunction resolvedFunction)
+    public WindowFunctionSupplier getWindowFunctionImplementation(Signature signature)
     {
-        return functions.getFunctionMetadata(resolvedFunction);
+        return functions.getWindowFunctionImplementation(signature);
     }
 
     @Override
-    public WindowFunctionSupplier getWindowFunctionImplementation(ResolvedFunction resolvedFunction)
+    public InternalAggregationFunction getAggregateFunctionImplementation(Signature signature)
     {
-        return functions.getWindowFunctionImplementation(resolvedFunction);
+        return functions.getAggregateFunctionImplementation(signature);
     }
 
     @Override
-    public InternalAggregationFunction getAggregateFunctionImplementation(ResolvedFunction resolvedFunction)
+    public ScalarFunctionImplementation getScalarFunctionImplementation(Signature signature)
     {
-        return functions.getAggregateFunctionImplementation(resolvedFunction);
-    }
-
-    @Override
-    public ScalarFunctionImplementation getScalarFunctionImplementation(ResolvedFunction resolvedFunction)
-    {
-        return functions.getScalarFunctionImplementation(resolvedFunction);
+        return functions.getScalarFunctionImplementation(signature);
     }
 
     @Override

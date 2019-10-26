@@ -15,7 +15,6 @@ package io.prestosql.sql;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import io.prestosql.metadata.Metadata;
 import io.prestosql.sql.planner.DeterminismEvaluator;
 import io.prestosql.sql.planner.Symbol;
 import io.prestosql.sql.planner.SymbolsExtractor;
@@ -27,7 +26,6 @@ import io.prestosql.sql.tree.Identifier;
 import io.prestosql.sql.tree.IsNullPredicate;
 import io.prestosql.sql.tree.LambdaExpression;
 import io.prestosql.sql.tree.LogicalBinaryExpression;
-import io.prestosql.sql.tree.LogicalBinaryExpression.Operator;
 import io.prestosql.sql.tree.NotExpression;
 import io.prestosql.sql.tree.SymbolReference;
 
@@ -168,26 +166,26 @@ public final class ExpressionUtils
         return queue.remove();
     }
 
-    public static Expression combinePredicates(Metadata metadata, Operator operator, Expression... expressions)
+    public static Expression combinePredicates(LogicalBinaryExpression.Operator operator, Expression... expressions)
     {
-        return combinePredicates(metadata, operator, Arrays.asList(expressions));
+        return combinePredicates(operator, Arrays.asList(expressions));
     }
 
-    public static Expression combinePredicates(Metadata metadata, Operator operator, Collection<Expression> expressions)
+    public static Expression combinePredicates(LogicalBinaryExpression.Operator operator, Collection<Expression> expressions)
     {
         if (operator == LogicalBinaryExpression.Operator.AND) {
-            return combineConjuncts(metadata, expressions);
+            return combineConjuncts(expressions);
         }
 
-        return combineDisjuncts(metadata, expressions);
+        return combineDisjuncts(expressions);
     }
 
-    public static Expression combineConjuncts(Metadata metadata, Expression... expressions)
+    public static Expression combineConjuncts(Expression... expressions)
     {
-        return combineConjuncts(metadata, Arrays.asList(expressions));
+        return combineConjuncts(Arrays.asList(expressions));
     }
 
-    public static Expression combineConjuncts(Metadata metadata, Collection<Expression> expressions)
+    public static Expression combineConjuncts(Collection<Expression> expressions)
     {
         requireNonNull(expressions, "expressions is null");
 
@@ -196,7 +194,7 @@ public final class ExpressionUtils
                 .filter(e -> !e.equals(TRUE_LITERAL))
                 .collect(toList());
 
-        conjuncts = removeDuplicates(metadata, conjuncts);
+        conjuncts = removeDuplicates(conjuncts);
 
         if (conjuncts.contains(FALSE_LITERAL)) {
             return FALSE_LITERAL;
@@ -205,12 +203,17 @@ public final class ExpressionUtils
         return and(conjuncts);
     }
 
-    public static Expression combineDisjuncts(Metadata metadata, Collection<Expression> expressions)
+    public static Expression combineDisjuncts(Expression... expressions)
     {
-        return combineDisjunctsWithDefault(metadata, expressions, FALSE_LITERAL);
+        return combineDisjuncts(Arrays.asList(expressions));
     }
 
-    public static Expression combineDisjunctsWithDefault(Metadata metadata, Collection<Expression> expressions, Expression emptyDefault)
+    public static Expression combineDisjuncts(Collection<Expression> expressions)
+    {
+        return combineDisjunctsWithDefault(expressions, FALSE_LITERAL);
+    }
+
+    public static Expression combineDisjunctsWithDefault(Collection<Expression> expressions, Expression emptyDefault)
     {
         requireNonNull(expressions, "expressions is null");
 
@@ -219,7 +222,7 @@ public final class ExpressionUtils
                 .filter(e -> !e.equals(FALSE_LITERAL))
                 .collect(toList());
 
-        disjuncts = removeDuplicates(metadata, disjuncts);
+        disjuncts = removeDuplicates(disjuncts);
 
         if (disjuncts.contains(TRUE_LITERAL)) {
             return TRUE_LITERAL;
@@ -228,23 +231,23 @@ public final class ExpressionUtils
         return disjuncts.isEmpty() ? emptyDefault : or(disjuncts);
     }
 
-    public static Expression filterDeterministicConjuncts(Metadata metadata, Expression expression)
+    public static Expression filterDeterministicConjuncts(Expression expression)
     {
-        return filterConjuncts(metadata, expression, expression1 -> DeterminismEvaluator.isDeterministic(expression1, metadata));
+        return filterConjuncts(expression, DeterminismEvaluator::isDeterministic);
     }
 
-    public static Expression filterNonDeterministicConjuncts(Metadata metadata, Expression expression)
+    public static Expression filterNonDeterministicConjuncts(Expression expression)
     {
-        return filterConjuncts(metadata, expression, not(testExpression -> DeterminismEvaluator.isDeterministic(testExpression, metadata)));
+        return filterConjuncts(expression, not(DeterminismEvaluator::isDeterministic));
     }
 
-    public static Expression filterConjuncts(Metadata metadata, Expression expression, Predicate<Expression> predicate)
+    public static Expression filterConjuncts(Expression expression, Predicate<Expression> predicate)
     {
         List<Expression> conjuncts = extractConjuncts(expression).stream()
                 .filter(predicate)
                 .collect(toList());
 
-        return combineConjuncts(metadata, conjuncts);
+        return combineConjuncts(conjuncts);
     }
 
     public static boolean referencesAny(Expression expression, Collection<Symbol> variables)
@@ -285,13 +288,13 @@ public final class ExpressionUtils
      * Removes duplicate deterministic expressions. Preserves the relative order
      * of the expressions in the list.
      */
-    private static List<Expression> removeDuplicates(Metadata metadata, List<Expression> expressions)
+    private static List<Expression> removeDuplicates(List<Expression> expressions)
     {
         Set<Expression> seen = new HashSet<>();
 
         ImmutableList.Builder<Expression> result = ImmutableList.builder();
         for (Expression expression : expressions) {
-            if (!DeterminismEvaluator.isDeterministic(expression, metadata)) {
+            if (!DeterminismEvaluator.isDeterministic(expression)) {
                 result.add(expression);
             }
             else if (!seen.contains(expression)) {

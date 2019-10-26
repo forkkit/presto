@@ -16,7 +16,7 @@ package io.prestosql.operator.aggregation;
 import com.google.common.collect.ImmutableList;
 import io.prestosql.spi.block.Block;
 import io.prestosql.spi.block.BlockBuilder;
-import io.prestosql.spi.type.Type;
+import io.prestosql.spi.type.StandardTypes;
 import org.testng.annotations.Test;
 
 import java.util.List;
@@ -55,9 +55,9 @@ public class TestBitwiseAndAggregation
     }
 
     @Override
-    protected List<Type> getFunctionParameterTypes()
+    protected List<String> getFunctionParameterTypes()
     {
-        return ImmutableList.of(BIGINT);
+        return ImmutableList.of(StandardTypes.BIGINT);
     }
 
     @Test

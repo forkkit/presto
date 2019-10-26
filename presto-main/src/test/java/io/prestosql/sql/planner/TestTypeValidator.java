@@ -19,10 +19,12 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ListMultimap;
 import io.prestosql.execution.warnings.WarningCollector;
+import io.prestosql.metadata.FunctionKind;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.Signature;
 import io.prestosql.spi.connector.ColumnHandle;
 import io.prestosql.spi.predicate.TupleDomain;
+import io.prestosql.spi.type.StandardTypes;
 import io.prestosql.spi.type.VarcharType;
 import io.prestosql.sql.parser.SqlParser;
 import io.prestosql.sql.planner.plan.AggregationNode;
@@ -38,7 +40,6 @@ import io.prestosql.sql.planner.sanity.TypeValidator;
 import io.prestosql.sql.tree.Cast;
 import io.prestosql.sql.tree.Expression;
 import io.prestosql.sql.tree.FrameBound;
-import io.prestosql.sql.tree.QualifiedName;
 import io.prestosql.sql.tree.WindowFrame;
 import io.prestosql.testing.TestingMetadata.TestingColumnHandle;
 import org.testng.annotations.BeforeMethod;
@@ -55,8 +56,6 @@ import static io.prestosql.spi.type.DateType.DATE;
 import static io.prestosql.spi.type.DoubleType.DOUBLE;
 import static io.prestosql.spi.type.IntegerType.INTEGER;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
-import static io.prestosql.sql.analyzer.TypeSignatureProvider.fromTypes;
-import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toSqlType;
 import static io.prestosql.sql.planner.plan.AggregationNode.Step.SINGLE;
 import static io.prestosql.sql.planner.plan.AggregationNode.singleGroupingSet;
 import static io.prestosql.testing.TestingHandles.TEST_TABLE_HANDLE;
@@ -67,7 +66,6 @@ public class TestTypeValidator
     private static final SqlParser SQL_PARSER = new SqlParser();
     private static final TypeValidator TYPE_VALIDATOR = new TypeValidator();
 
-    private final Metadata metadata = createTestMetadataManager();
     private SymbolAllocator symbolAllocator;
     private TableScanNode baseTableScan;
     private Symbol columnA;
@@ -105,8 +103,8 @@ public class TestTypeValidator
     @Test
     public void testValidProject()
     {
-        Expression expression1 = new Cast(columnB.toSymbolReference(), toSqlType(BIGINT));
-        Expression expression2 = new Cast(columnC.toSymbolReference(), toSqlType(BIGINT));
+        Expression expression1 = new Cast(columnB.toSymbolReference(), StandardTypes.BIGINT);
+        Expression expression2 = new Cast(columnC.toSymbolReference(), StandardTypes.BIGINT);
         Assignments assignments = Assignments.builder()
                 .put(symbolAllocator.newSymbol(expression1, BIGINT), expression1)
                 .put(symbolAllocator.newSymbol(expression2, BIGINT), expression2)
@@ -141,7 +139,14 @@ public class TestTypeValidator
     public void testValidWindow()
     {
         Symbol windowSymbol = symbolAllocator.newSymbol("sum", DOUBLE);
-        ResolvedFunction resolvedFunction = metadata.resolveFunction(QualifiedName.of("sum"), fromTypes(DOUBLE));
+        Signature signature = new Signature(
+                "sum",
+                FunctionKind.WINDOW,
+                ImmutableList.of(),
+                ImmutableList.of(),
+                DOUBLE.getTypeSignature(),
+                ImmutableList.of(DOUBLE.getTypeSignature()),
+                false);
 
         WindowNode.Frame frame = new WindowNode.Frame(
                 WindowFrame.Type.RANGE,
@@ -152,7 +157,7 @@ public class TestTypeValidator
                 Optional.empty(),
                 Optional.empty());
 
-        WindowNode.Function function = new WindowNode.Function(resolvedFunction, ImmutableList.of(columnC.toSymbolReference()), frame, false);
+        WindowNode.Function function = new WindowNode.Function(signature, ImmutableList.of(columnC.toSymbolReference()), frame, false);
 
         WindowNode.Specification specification = new WindowNode.Specification(ImmutableList.of(), Optional.empty());
 
@@ -177,7 +182,14 @@ public class TestTypeValidator
                 newId(),
                 baseTableScan,
                 ImmutableMap.of(aggregationSymbol, new Aggregation(
-                        metadata.resolveFunction(QualifiedName.of("sum"), fromTypes(DOUBLE)),
+                        new Signature(
+                                "sum",
+                                FunctionKind.AGGREGATE,
+                                ImmutableList.of(),
+                                ImmutableList.of(),
+                                DOUBLE.getTypeSignature(),
+                                ImmutableList.of(DOUBLE.getTypeSignature()),
+                                false),
                         ImmutableList.of(columnC.toSymbolReference()),
                         false,
                         Optional.empty(),
@@ -195,7 +207,7 @@ public class TestTypeValidator
     @Test
     public void testValidTypeOnlyCoercion()
     {
-        Expression expression = new Cast(columnB.toSymbolReference(), toSqlType(BIGINT));
+        Expression expression = new Cast(columnB.toSymbolReference(), StandardTypes.BIGINT);
         Assignments assignments = Assignments.builder()
                 .put(symbolAllocator.newSymbol(expression, BIGINT), expression)
                 .put(symbolAllocator.newSymbol(columnE.toSymbolReference(), VARCHAR), columnE.toSymbolReference()) // implicit coercion from varchar(3) to varchar
@@ -208,8 +220,8 @@ public class TestTypeValidator
     @Test(expectedExceptions = IllegalArgumentException.class, expectedExceptionsMessageRegExp = "type of symbol 'expr(_[0-9]+)?' is expected to be bigint, but the actual type is integer")
     public void testInvalidProject()
     {
-        Expression expression1 = new Cast(columnB.toSymbolReference(), toSqlType(INTEGER));
-        Expression expression2 = new Cast(columnA.toSymbolReference(), toSqlType(INTEGER));
+        Expression expression1 = new Cast(columnB.toSymbolReference(), StandardTypes.INTEGER);
+        Expression expression2 = new Cast(columnA.toSymbolReference(), StandardTypes.INTEGER);
         Assignments assignments = Assignments.builder()
                 .put(symbolAllocator.newSymbol(expression1, BIGINT), expression1) // should be INTEGER
                 .put(symbolAllocator.newSymbol(expression1, INTEGER), expression2)
@@ -231,7 +243,14 @@ public class TestTypeValidator
                 newId(),
                 baseTableScan,
                 ImmutableMap.of(aggregationSymbol, new Aggregation(
-                        metadata.resolveFunction(QualifiedName.of("sum"), fromTypes(DOUBLE)),
+                        new Signature(
+                                "sum",
+                                FunctionKind.AGGREGATE,
+                                ImmutableList.of(),
+                                ImmutableList.of(),
+                                DOUBLE.getTypeSignature(),
+                                ImmutableList.of(DOUBLE.getTypeSignature()),
+                                false),
                         ImmutableList.of(columnA.toSymbolReference()),
                         false,
                         Optional.empty(),
@@ -246,16 +265,23 @@ public class TestTypeValidator
         assertTypesValid(node);
     }
 
-    @Test(expectedExceptions = IllegalArgumentException.class, expectedExceptionsMessageRegExp = "type of symbol 'sum(_[0-9]+)?' is expected to be bigint, but the actual type is double")
+    @Test(expectedExceptions = IllegalArgumentException.class, expectedExceptionsMessageRegExp = "type of symbol 'sum(_[0-9]+)?' is expected to be double, but the actual type is bigint")
     public void testInvalidAggregationFunctionSignature()
     {
-        Symbol aggregationSymbol = symbolAllocator.newSymbol("sum", BIGINT);
+        Symbol aggregationSymbol = symbolAllocator.newSymbol("sum", DOUBLE);
 
         PlanNode node = new AggregationNode(
                 newId(),
                 baseTableScan,
                 ImmutableMap.of(aggregationSymbol, new Aggregation(
-                        metadata.resolveFunction(QualifiedName.of("sum"), fromTypes(DOUBLE)),
+                        new Signature(
+                                "sum",
+                                FunctionKind.AGGREGATE,
+                                ImmutableList.of(),
+                                ImmutableList.of(),
+                                BIGINT.getTypeSignature(), // should be DOUBLE
+                                ImmutableList.of(DOUBLE.getTypeSignature()),
+                                false),
                         ImmutableList.of(columnC.toSymbolReference()),
                         false,
                         Optional.empty(),
@@ -274,7 +300,14 @@ public class TestTypeValidator
     public void testInvalidWindowFunctionCall()
     {
         Symbol windowSymbol = symbolAllocator.newSymbol("sum", DOUBLE);
-        ResolvedFunction resolvedFunction = metadata.resolveFunction(QualifiedName.of("sum"), fromTypes(DOUBLE));
+        Signature signature = new Signature(
+                "sum",
+                FunctionKind.WINDOW,
+                ImmutableList.of(),
+                ImmutableList.of(),
+                DOUBLE.getTypeSignature(),
+                ImmutableList.of(DOUBLE.getTypeSignature()),
+                false);
 
         WindowNode.Frame frame = new WindowNode.Frame(
                 WindowFrame.Type.RANGE,
@@ -285,7 +318,7 @@ public class TestTypeValidator
                 Optional.empty(),
                 Optional.empty());
 
-        WindowNode.Function function = new WindowNode.Function(resolvedFunction, ImmutableList.of(columnA.toSymbolReference()), frame, false);
+        WindowNode.Function function = new WindowNode.Function(signature, ImmutableList.of(columnA.toSymbolReference()), frame, false);
 
         WindowNode.Specification specification = new WindowNode.Specification(ImmutableList.of(), Optional.empty());
 
@@ -301,11 +334,18 @@ public class TestTypeValidator
         assertTypesValid(node);
     }
 
-    @Test(expectedExceptions = IllegalArgumentException.class, expectedExceptionsMessageRegExp = "type of symbol 'sum(_[0-9]+)?' is expected to be bigint, but the actual type is double")
+    @Test(expectedExceptions = IllegalArgumentException.class, expectedExceptionsMessageRegExp = "type of symbol 'sum(_[0-9]+)?' is expected to be double, but the actual type is bigint")
     public void testInvalidWindowFunctionSignature()
     {
-        Symbol windowSymbol = symbolAllocator.newSymbol("sum", BIGINT);
-        ResolvedFunction resolvedFunction = metadata.resolveFunction(QualifiedName.of("sum"), fromTypes(DOUBLE));
+        Symbol windowSymbol = symbolAllocator.newSymbol("sum", DOUBLE);
+        Signature signature = new Signature(
+                "sum",
+                FunctionKind.WINDOW,
+                ImmutableList.of(),
+                ImmutableList.of(),
+                BIGINT.getTypeSignature(), // should be DOUBLE
+                ImmutableList.of(DOUBLE.getTypeSignature()),
+                false);
 
         WindowNode.Frame frame = new WindowNode.Frame(
                 WindowFrame.Type.RANGE,
@@ -316,7 +356,7 @@ public class TestTypeValidator
                 Optional.empty(),
                 Optional.empty());
 
-        WindowNode.Function function = new WindowNode.Function(resolvedFunction, ImmutableList.of(columnC.toSymbolReference()), frame, false);
+        WindowNode.Function function = new WindowNode.Function(signature, ImmutableList.of(columnC.toSymbolReference()), frame, false);
 
         WindowNode.Specification specification = new WindowNode.Specification(ImmutableList.of(), Optional.empty());
 

@@ -191,8 +191,8 @@ import static io.prestosql.plugin.hive.metastore.StorageFormat.VIEW_STORAGE_FORM
 import static io.prestosql.plugin.hive.metastore.StorageFormat.fromHiveStorageFormat;
 import static io.prestosql.plugin.hive.util.CompressionConfigUtil.configureCompression;
 import static io.prestosql.plugin.hive.util.ConfigurationUtils.toJobConf;
-import static io.prestosql.plugin.hive.util.HiveBucketing.containsTimestampBucketedV2;
 import static io.prestosql.plugin.hive.util.HiveBucketing.getHiveBucketHandle;
+import static io.prestosql.plugin.hive.util.HiveBucketing.isHiveBucketingV1;
 import static io.prestosql.plugin.hive.util.HiveUtil.PRESTO_VIEW_FLAG;
 import static io.prestosql.plugin.hive.util.HiveUtil.columnExtraInfo;
 import static io.prestosql.plugin.hive.util.HiveUtil.decodeViewData;
@@ -237,7 +237,6 @@ public class HiveMetadata
 {
     public static final String PRESTO_VERSION_NAME = "presto_version";
     public static final String PRESTO_QUERY_ID_NAME = "presto_query_id";
-    public static final String BUCKETING_VERSION = "bucketing_version";
     public static final String TABLE_COMMENT = "comment";
 
     private static final String ORC_BLOOM_FILTER_COLUMNS_KEY = "orc.bloom.filter.columns";
@@ -339,8 +338,8 @@ public class HiveMetadata
                 tableName.getSchemaName(),
                 tableName.getTableName(),
                 table.get().getParameters(),
-                getPartitionKeyColumnHandles(table.get(), typeManager),
-                getHiveBucketHandle(table.get(), typeManager));
+                getPartitionKeyColumnHandles(table.get()),
+                getHiveBucketHandle(table.get()));
     }
 
     @Override
@@ -418,13 +417,14 @@ public class HiveMetadata
         }
 
         List<Type> partitionColumnTypes = partitionColumns.stream()
-                .map(HiveColumnHandle::getType)
+                .map(HiveColumnHandle::getTypeSignature)
+                .map(typeManager::getType)
                 .collect(toImmutableList());
 
         List<ColumnMetadata> partitionSystemTableColumns = partitionColumns.stream()
                 .map(column -> new ColumnMetadata(
                         column.getName(),
-                        column.getType(),
+                        typeManager.getType(column.getTypeSignature()),
                         column.getComment().orElse(null),
                         column.isHidden()))
                 .collect(toImmutableList());
@@ -481,9 +481,9 @@ public class HiveMetadata
             throw new TableNotFoundException(tableName);
         }
 
-        Function<HiveColumnHandle, ColumnMetadata> metadataGetter = columnMetadataGetter(table.get());
+        Function<HiveColumnHandle, ColumnMetadata> metadataGetter = columnMetadataGetter(table.get(), typeManager);
         ImmutableList.Builder<ColumnMetadata> columns = ImmutableList.builder();
-        for (HiveColumnHandle columnHandle : hiveColumnHandles(table.get(), typeManager)) {
+        for (HiveColumnHandle columnHandle : hiveColumnHandles(table.get())) {
             columns.add(metadataGetter.apply(columnHandle));
         }
 
@@ -512,7 +512,6 @@ public class HiveMetadata
 
         // Bucket properties
         table.get().getStorage().getBucketProperty().ifPresent(property -> {
-            properties.put(BUCKETING_VERSION, property.getBucketingVersion().getVersion());
             properties.put(BUCKET_COUNT_PROPERTY, property.getBucketCount());
             properties.put(BUCKETED_BY_PROPERTY, property.getBucketedBy());
             properties.put(SORTED_BY_PROPERTY, property.getSortedBy());
@@ -619,7 +618,7 @@ public class HiveMetadata
         SchemaTableName tableName = ((HiveTableHandle) tableHandle).getSchemaTableName();
         Table table = metastore.getTable(new HiveIdentity(session), tableName.getSchemaName(), tableName.getTableName())
                 .orElseThrow(() -> new TableNotFoundException(tableName));
-        return hiveColumnHandles(table, typeManager).stream()
+        return hiveColumnHandles(table).stream()
                 .collect(toImmutableMap(HiveColumnHandle::getName, identity()));
     }
 
@@ -683,7 +682,7 @@ public class HiveMetadata
     @Override
     public ColumnMetadata getColumnMetadata(ConnectorSession session, ConnectorTableHandle tableHandle, ColumnHandle columnHandle)
     {
-        return ((HiveColumnHandle) columnHandle).getColumnMetadata();
+        return ((HiveColumnHandle) columnHandle).getColumnMetadata(typeManager);
     }
 
     @Override
@@ -741,7 +740,7 @@ public class HiveMetadata
 
         List<HiveColumnHandle> columnHandles = getColumnHandles(tableMetadata, ImmutableSet.copyOf(partitionedBy), typeTranslator);
         HiveStorageFormat hiveStorageFormat = getHiveStorageFormat(tableMetadata.getProperties());
-        Map<String, String> tableProperties = getEmptyTableProperties(tableMetadata, bucketProperty, new HdfsContext(session, schemaName, tableName));
+        Map<String, String> tableProperties = getEmptyTableProperties(tableMetadata, new HdfsContext(session, schemaName, tableName));
 
         hiveStorageFormat.validateColumns(columnHandles);
 
@@ -793,13 +792,10 @@ public class HiveMetadata
                 new PartitionStatistics(basicStatistics, ImmutableMap.of()));
     }
 
-    private Map<String, String> getEmptyTableProperties(ConnectorTableMetadata tableMetadata, Optional<HiveBucketProperty> bucketProperty, HdfsContext hdfsContext)
+    private Map<String, String> getEmptyTableProperties(ConnectorTableMetadata tableMetadata, HdfsContext hdfsContext)
     {
         HiveStorageFormat hiveStorageFormat = getHiveStorageFormat(tableMetadata.getProperties());
         ImmutableMap.Builder<String, String> tableProperties = ImmutableMap.builder();
-
-        bucketProperty.ifPresent(hiveBucketProperty ->
-                tableProperties.put(BUCKETING_VERSION, Integer.toString(hiveBucketProperty.getBucketingVersion().getVersion())));
 
         // ORC format specific properties
         List<String> columns = getOrcBloomFilterColumns(tableMetadata.getProperties());
@@ -1086,7 +1082,7 @@ public class HiveMetadata
         List<String> partitionColumnNames = partitionColumns.stream()
                 .map(Column::getName)
                 .collect(toImmutableList());
-        List<HiveColumnHandle> hiveColumnHandles = hiveColumnHandles(table, typeManager);
+        List<HiveColumnHandle> hiveColumnHandles = hiveColumnHandles(table);
         Map<String, Type> columnTypes = hiveColumnHandles.stream()
                 .filter(columnHandle -> !columnHandle.isHidden())
                 .collect(toImmutableMap(HiveColumnHandle::getName, column -> column.getHiveType().getType(typeManager)));
@@ -1114,7 +1110,7 @@ public class HiveMetadata
             Map<String, Set<ColumnStatisticType>> columnStatisticTypes = hiveColumnHandles.stream()
                     .filter(columnHandle -> !partitionColumnNames.contains(columnHandle.getName()))
                     .filter(column -> !column.isHidden())
-                    .collect(toImmutableMap(HiveColumnHandle::getName, column -> ImmutableSet.copyOf(metastore.getSupportedColumnStatistics(column.getType()))));
+                    .collect(toImmutableMap(HiveColumnHandle::getName, column -> ImmutableSet.copyOf(metastore.getSupportedColumnStatistics(typeManager.getType(column.getTypeSignature())))));
             Supplier<PartitionStatistics> emptyPartitionStatistics = Suppliers.memoize(() -> createEmptyPartitionStatistics(columnTypes, columnStatisticTypes));
 
             int usedComputedStatistics = 0;
@@ -1155,7 +1151,7 @@ public class HiveMetadata
         String schemaName = schemaTableName.getSchemaName();
         String tableName = schemaTableName.getTableName();
 
-        Map<String, String> tableProperties = getEmptyTableProperties(tableMetadata, bucketProperty, new HdfsContext(session, schemaName, tableName));
+        Map<String, String> tableProperties = getEmptyTableProperties(tableMetadata, new HdfsContext(session, schemaName, tableName));
         List<HiveColumnHandle> columnHandles = getColumnHandles(tableMetadata, ImmutableSet.copyOf(partitionedBy), typeTranslator);
         HiveStorageFormat partitionStorageFormat = isRespectTableFormat(session) ? tableStorageFormat : getHiveStorageFormat(session);
 
@@ -1388,7 +1384,7 @@ public class HiveMetadata
             }
         }
 
-        List<HiveColumnHandle> handles = hiveColumnHandles(table, typeManager).stream()
+        List<HiveColumnHandle> handles = hiveColumnHandles(table).stream()
                 .filter(columnHandle -> !columnHandle.isHidden())
                 .collect(toList());
 
@@ -1763,7 +1759,6 @@ public class HiveMetadata
         if (isBucketExecutionEnabled(session) && hiveTable.getBucketHandle().isPresent()) {
             tablePartitioning = hiveTable.getBucketHandle().map(bucketing -> new ConnectorTablePartitioning(
                     new HivePartitioningHandle(
-                            bucketing.getBucketingVersion(),
                             bucketing.getReadBucketCount(),
                             bucketing.getColumns().stream()
                                     .map(HiveColumnHandle::getHiveType)
@@ -1809,9 +1804,6 @@ public class HiveMetadata
         if (!leftHandle.getHiveTypes().equals(rightHandle.getHiveTypes())) {
             return Optional.empty();
         }
-        if (leftHandle.getBucketingVersion() != rightHandle.getBucketingVersion()) {
-            return Optional.empty();
-        }
         if (leftHandle.getBucketCount() == rightHandle.getBucketCount()) {
             return Optional.of(leftHandle);
         }
@@ -1838,7 +1830,6 @@ public class HiveMetadata
         }
 
         return Optional.of(new HivePartitioningHandle(
-                leftHandle.getBucketingVersion(), // same as rightHandle.getBucketingVersion()
                 smallerBucketCount,
                 leftHandle.getHiveTypes(),
                 maxCompatibleBucketCount));
@@ -1885,7 +1876,6 @@ public class HiveMetadata
                 hiveTable.getEnforcedConstraint(),
                 Optional.of(new HiveBucketHandle(
                         bucketHandle.getColumns(),
-                        bucketHandle.getBucketingVersion(),
                         bucketHandle.getTableBucketCount(),
                         hivePartitioningHandle.getBucketCount())),
                 hiveTable.getBucketFilter(),
@@ -1950,14 +1940,11 @@ public class HiveMetadata
         Table table = metastore.getTable(new HiveIdentity(session), tableName.getSchemaName(), tableName.getTableName())
                 .orElseThrow(() -> new TableNotFoundException(tableName));
 
-        if (table.getStorage().getBucketProperty().isPresent()) {
-            // TODO (https://github.com/prestosql/presto/issues/1706): support bucketing v2 for timestamp
-            if (containsTimestampBucketedV2(table.getStorage().getBucketProperty().get(), table)) {
-                throw new PrestoException(NOT_SUPPORTED, "Table bucketing version not supported for writing when bucketing on timestamp type");
-            }
+        if (!isHiveBucketingV1(table) && table.getStorage().getBucketProperty().isPresent()) {
+            throw new PrestoException(NOT_SUPPORTED, "Table bucketing version not supported for writing");
         }
 
-        Optional<HiveBucketHandle> hiveBucketHandle = getHiveBucketHandle(table, typeManager);
+        Optional<HiveBucketHandle> hiveBucketHandle = getHiveBucketHandle(table);
         if (!hiveBucketHandle.isPresent()) {
             return Optional.empty();
         }
@@ -1968,7 +1955,6 @@ public class HiveMetadata
         }
 
         HivePartitioningHandle partitioningHandle = new HivePartitioningHandle(
-                hiveBucketHandle.get().getBucketingVersion(),
                 hiveBucketHandle.get().getTableBucketCount(),
                 hiveBucketHandle.get().getColumns().stream()
                         .map(HiveColumnHandle::getHiveType)
@@ -1999,7 +1985,6 @@ public class HiveMetadata
                 .collect(toMap(ColumnMetadata::getName, column -> toHiveType(typeTranslator, column.getType())));
         return Optional.of(new ConnectorNewTableLayout(
                 new HivePartitioningHandle(
-                        bucketProperty.get().getBucketingVersion(),
                         bucketProperty.get().getBucketCount(),
                         bucketedBy.stream()
                                 .map(hiveTypeMap::get)
@@ -2205,7 +2190,7 @@ public class HiveMetadata
             columnHandles.add(new HiveColumnHandle(
                     column.getName(),
                     toHiveType(typeTranslator, column.getType()),
-                    column.getType(),
+                    column.getType().getTypeSignature(),
                     ordinal,
                     columnType,
                     Optional.ofNullable(column.getComment())));
@@ -2235,7 +2220,7 @@ public class HiveMetadata
         }
     }
 
-    private static Function<HiveColumnHandle, ColumnMetadata> columnMetadataGetter(Table table)
+    private static Function<HiveColumnHandle, ColumnMetadata> columnMetadataGetter(Table table, TypeManager typeManager)
     {
         ImmutableList.Builder<String> columnNames = ImmutableList.builder();
         table.getPartitionColumns().stream().map(Column::getName).forEach(columnNames::add);
@@ -2268,7 +2253,7 @@ public class HiveMetadata
 
         return handle -> new ColumnMetadata(
                 handle.getName(),
-                handle.getType(),
+                typeManager.getType(handle.getTypeSignature()),
                 columnComment.get(handle.getName()).orElse(null),
                 columnExtraInfo(handle.isPartitionKey()),
                 handle.isHidden());

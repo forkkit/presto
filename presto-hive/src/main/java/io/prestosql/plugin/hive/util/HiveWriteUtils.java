@@ -133,7 +133,6 @@ import static java.util.UUID.randomUUID;
 import static java.util.stream.Collectors.toList;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.COMPRESSRESULT;
 import static org.apache.hadoop.hive.metastore.TableType.MANAGED_TABLE;
-import static org.apache.hadoop.hive.metastore.TableType.MATERIALIZED_VIEW;
 import static org.apache.hadoop.hive.ql.io.AcidUtils.isTransactionalTable;
 import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory.getPrimitiveJavaObjectInspector;
 import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory.getPrimitiveWritableObjectInspector;
@@ -379,10 +378,6 @@ public final class HiveWriteUtils
 
     public static void checkTableIsWritable(Table table, boolean writesToNonManagedTablesEnabled)
     {
-        if (table.getTableType().equals(MATERIALIZED_VIEW.toString())) {
-            throw new PrestoException(NOT_SUPPORTED, "Cannot write to Hive materialized view");
-        }
-
         if (!writesToNonManagedTablesEnabled && !table.getTableType().equals(MANAGED_TABLE.toString())) {
             throw new PrestoException(NOT_SUPPORTED, "Cannot write to non-managed Hive table");
         }

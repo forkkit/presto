@@ -21,7 +21,6 @@ import io.prestosql.spi.type.AbstractVariableWidthType;
 import io.prestosql.spi.type.TypeSignature;
 
 import static java.lang.String.format;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 // Layout is <size>:<model>, where
 //   size: is an int describing the length of the model bytes
@@ -78,6 +77,6 @@ public class ModelType
             return null;
         }
 
-        return format("<%s>", getTypeSignature()).getBytes(UTF_8);
+        return format("<%s>", getTypeSignature()).getBytes();
     }
 }

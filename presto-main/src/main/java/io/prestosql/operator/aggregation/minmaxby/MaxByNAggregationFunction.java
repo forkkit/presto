@@ -22,6 +22,12 @@ public class MaxByNAggregationFunction
 
     public MaxByNAggregationFunction()
     {
-        super(NAME, t -> t::compareTo, "Returns the values of the first argument associated with the maximum values of the second argument");
+        super(NAME, t -> t::compareTo);
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "Returns the values of the first argument associated with the maximum values of the second argument";
     }
 }

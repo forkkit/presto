@@ -25,7 +25,6 @@ import io.prestosql.sql.tree.Parameter;
 import java.util.Map;
 
 import static com.google.common.base.Preconditions.checkState;
-import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toSqlType;
 import static java.util.Objects.requireNonNull;
 
 public class ParameterRewriter
@@ -70,7 +69,7 @@ public class ParameterRewriter
         if (coercion != null) {
             rewritten = new Cast(
                     rewritten,
-                    toSqlType(coercion),
+                    coercion.getTypeSignature().toString(),
                     false,
                     analysis.isTypeOnlyCoercion(original));
         }

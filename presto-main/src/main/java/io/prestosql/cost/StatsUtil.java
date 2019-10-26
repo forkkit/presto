@@ -15,7 +15,7 @@ package io.prestosql.cost;
 
 import io.prestosql.Session;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.Signature;
 import io.prestosql.spi.type.BigintType;
 import io.prestosql.spi.type.BooleanType;
 import io.prestosql.spi.type.DateType;
@@ -30,7 +30,6 @@ import io.prestosql.sql.InterpretedFunctionInvoker;
 
 import java.util.OptionalDouble;
 
-import static io.prestosql.spi.type.DoubleType.DOUBLE;
 import static java.util.Collections.singletonList;
 
 final class StatsUtil
@@ -41,8 +40,8 @@ final class StatsUtil
     {
         if (convertibleToDoubleWithCast(type)) {
             InterpretedFunctionInvoker functionInvoker = new InterpretedFunctionInvoker(metadata);
-            ResolvedFunction castFunction = metadata.getCoercion(type, DOUBLE);
-            return OptionalDouble.of((double) functionInvoker.invoke(castFunction, session.toConnectorSession(), singletonList(value)));
+            Signature castSignature = metadata.getCoercion(type, DoubleType.DOUBLE);
+            return OptionalDouble.of((double) functionInvoker.invoke(castSignature, session.toConnectorSession(), singletonList(value)));
         }
 
         if (DateType.DATE.equals(type)) {
@@ -55,12 +54,12 @@ final class StatsUtil
     private static boolean convertibleToDoubleWithCast(Type type)
     {
         return type instanceof DecimalType
-                || type instanceof DoubleType
-                || type instanceof RealType
-                || type instanceof BigintType
-                || type instanceof IntegerType
-                || type instanceof SmallintType
-                || type instanceof TinyintType
-                || type instanceof BooleanType;
+                || DoubleType.DOUBLE.equals(type)
+                || RealType.REAL.equals(type)
+                || BigintType.BIGINT.equals(type)
+                || IntegerType.INTEGER.equals(type)
+                || SmallintType.SMALLINT.equals(type)
+                || TinyintType.TINYINT.equals(type)
+                || BooleanType.BOOLEAN.equals(type);
     }
 }

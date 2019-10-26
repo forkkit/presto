@@ -14,7 +14,6 @@
 package io.prestosql.plugin.hive;
 
 import io.prestosql.plugin.hive.util.HiveBucketing;
-import io.prestosql.plugin.hive.util.HiveBucketing.BucketingVersion;
 import io.prestosql.spi.Page;
 import io.prestosql.spi.connector.BucketFunction;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
@@ -28,13 +27,11 @@ import static java.util.Objects.requireNonNull;
 public class HiveBucketFunction
         implements BucketFunction
 {
-    private final BucketingVersion bucketingVersion;
     private final int bucketCount;
     private final List<TypeInfo> typeInfos;
 
-    public HiveBucketFunction(BucketingVersion bucketingVersion, int bucketCount, List<HiveType> hiveTypes)
+    public HiveBucketFunction(int bucketCount, List<HiveType> hiveTypes)
     {
-        this.bucketingVersion = requireNonNull(bucketingVersion, "bucketingVersion is null");
         this.bucketCount = bucketCount;
         this.typeInfos = requireNonNull(hiveTypes, "hiveTypes is null").stream()
                 .map(HiveType::getTypeInfo)
@@ -44,14 +41,13 @@ public class HiveBucketFunction
     @Override
     public int getBucket(Page page, int position)
     {
-        return HiveBucketing.getHiveBucket(bucketingVersion, bucketCount, typeInfos, page, position);
+        return HiveBucketing.getHiveBucket(bucketCount, typeInfos, page, position);
     }
 
     @Override
     public String toString()
     {
         return toStringHelper(this)
-                .add("version", bucketingVersion)
                 .add("bucketCount", bucketCount)
                 .add("typeInfos", typeInfos)
                 .toString();

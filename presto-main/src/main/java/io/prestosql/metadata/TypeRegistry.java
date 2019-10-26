@@ -19,13 +19,11 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import io.prestosql.spi.type.ParametricType;
 import io.prestosql.spi.type.Type;
-import io.prestosql.spi.type.TypeId;
 import io.prestosql.spi.type.TypeManager;
 import io.prestosql.spi.type.TypeNotFoundException;
 import io.prestosql.spi.type.TypeParameter;
 import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.spi.type.TypeSignatureParameter;
-import io.prestosql.sql.parser.SqlParser;
 import io.prestosql.type.CharParametricType;
 import io.prestosql.type.DecimalParametricType;
 import io.prestosql.type.VarcharParametricType;
@@ -61,7 +59,6 @@ import static io.prestosql.spi.type.TimestampType.TIMESTAMP;
 import static io.prestosql.spi.type.TimestampWithTimeZoneType.TIMESTAMP_WITH_TIME_ZONE;
 import static io.prestosql.spi.type.TinyintType.TINYINT;
 import static io.prestosql.spi.type.VarbinaryType.VARBINARY;
-import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toTypeSignature;
 import static io.prestosql.type.ArrayParametricType.ARRAY;
 import static io.prestosql.type.CodePointsType.CODE_POINTS;
 import static io.prestosql.type.ColorType.COLOR;
@@ -84,8 +81,6 @@ import static java.util.Objects.requireNonNull;
 @ThreadSafe
 final class TypeRegistry
 {
-    private static final SqlParser SQL_PARSER = new SqlParser();
-
     private final ConcurrentMap<TypeSignature, Type> types = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ParametricType> parametricTypes = new ConcurrentHashMap<>();
 
@@ -160,17 +155,6 @@ final class TypeRegistry
         return type;
     }
 
-    public Type getType(TypeManager typeManager, TypeId id)
-    {
-        // TODO: ID should be encoded in a more canonical form than SQL
-        return fromSqlType(typeManager, id.getId());
-    }
-
-    public Type fromSqlType(TypeManager typeManager, String sqlType)
-    {
-        return getType(typeManager, toTypeSignature(SQL_PARSER.createType(sqlType)));
-    }
-
     private Type instantiateParametricType(TypeManager typeManager, TypeSignature signature)
     {
         List<TypeParameter> parameters = new ArrayList<>();
@@ -220,7 +204,7 @@ final class TypeRegistry
         requireNonNull(alias, "alias is null");
         requireNonNull(type, "type is null");
 
-        Type existingType = types.putIfAbsent(new TypeSignature(alias), type);
+        Type existingType = types.putIfAbsent(TypeSignature.parseTypeSignature(alias), type);
         checkState(existingType == null || existingType.equals(type), "Alias %s is already mapped to %s", alias, type);
     }
 

@@ -54,7 +54,8 @@ public class RowHashCodeOperator
         return new ScalarFunctionImplementation(
                 false,
                 ImmutableList.of(valueTypeArgumentProperty(RETURN_NULL_ON_NULL)),
-                METHOD_HANDLE.bindTo(type));
+                METHOD_HANDLE.bindTo(type),
+                isDeterministic());
     }
 
     @UsedByGeneratedCode

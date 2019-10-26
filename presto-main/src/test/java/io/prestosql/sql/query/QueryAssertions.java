@@ -85,11 +85,6 @@ class QueryAssertions
         assertQuery(actual, expected, false);
     }
 
-    public void assertQueryOrdered(@Language("SQL") String actual, @Language("SQL") String expected)
-    {
-        assertQuery(actual, expected, true);
-    }
-
     public void assertQuery(@Language("SQL") String actual, @Language("SQL") String expected, boolean ensureOrdering)
     {
         MaterializedResult actualResults = null;

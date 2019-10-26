@@ -27,7 +27,6 @@ import io.airlift.bytecode.control.IfStatement;
 import io.prestosql.annotation.UsedByGeneratedCode;
 import io.prestosql.metadata.BoundVariables;
 import io.prestosql.metadata.FunctionKind;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlScalarFunction;
@@ -41,7 +40,6 @@ import io.prestosql.spi.connector.ConnectorSession;
 import io.prestosql.spi.type.MapType;
 import io.prestosql.spi.type.StandardTypes;
 import io.prestosql.spi.type.Type;
-import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.spi.type.TypeSignatureParameter;
 import io.prestosql.sql.gen.CallSiteBinder;
 import io.prestosql.sql.gen.SqlTypeBytecodeExpression;
@@ -75,8 +73,7 @@ import static io.prestosql.operator.scalar.ScalarFunctionImplementation.Argument
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.ArgumentProperty.valueTypeArgumentProperty;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.NullConvention.RETURN_NULL_ON_NULL;
 import static io.prestosql.spi.StandardErrorCode.INVALID_FUNCTION_ARGUMENT;
-import static io.prestosql.spi.type.TypeSignature.functionType;
-import static io.prestosql.spi.type.TypeSignature.mapType;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.sql.gen.SqlTypeBytecodeExpression.constantType;
 import static io.prestosql.type.UnknownType.UNKNOWN;
 import static io.prestosql.util.CompilerUtils.defineClass;
@@ -91,20 +88,32 @@ public final class MapTransformKeyFunction
 
     private MapTransformKeyFunction()
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        "transform_keys",
-                        FunctionKind.SCALAR,
-                        ImmutableList.of(typeVariable("K1"), typeVariable("K2"), typeVariable("V")),
-                        ImmutableList.of(),
-                        mapType(new TypeSignature("K2"), new TypeSignature("V")),
-                        ImmutableList.of(
-                                mapType(new TypeSignature("K1"), new TypeSignature("V")),
-                                functionType(new TypeSignature("K1"), new TypeSignature("V"), new TypeSignature("K2"))),
-                        false),
-                false,
-                false,
-                "apply lambda to each entry of the map and transform the key"));
+        super(new Signature(
+                "transform_keys",
+                FunctionKind.SCALAR,
+                ImmutableList.of(typeVariable("K1"), typeVariable("K2"), typeVariable("V")),
+                ImmutableList.of(),
+                parseTypeSignature("map(K2,V)"),
+                ImmutableList.of(parseTypeSignature("map(K1,V)"), parseTypeSignature("function(K1,V,K2)")),
+                false));
+    }
+
+    @Override
+    public boolean isHidden()
+    {
+        return false;
+    }
+
+    @Override
+    public boolean isDeterministic()
+    {
+        return false;
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "apply lambda to each entry of the map and transform the key";
     }
 
     @Override
@@ -114,15 +123,16 @@ public final class MapTransformKeyFunction
         Type transformedKeyType = boundVariables.getTypeVariable("K2");
         Type valueType = boundVariables.getTypeVariable("V");
         MapType resultMapType = (MapType) metadata.getParameterizedType(StandardTypes.MAP, ImmutableList.of(
-                TypeSignatureParameter.typeParameter(transformedKeyType.getTypeSignature()),
-                TypeSignatureParameter.typeParameter(valueType.getTypeSignature())));
+                TypeSignatureParameter.of(transformedKeyType.getTypeSignature()),
+                TypeSignatureParameter.of(valueType.getTypeSignature())));
         return new ScalarFunctionImplementation(
                 false,
                 ImmutableList.of(
                         valueTypeArgumentProperty(RETURN_NULL_ON_NULL),
                         functionTypeArgumentProperty(BinaryFunctionInterface.class)),
                 generateTransformKey(keyType, transformedKeyType, valueType, resultMapType),
-                Optional.of(STATE_FACTORY.bindTo(resultMapType)));
+                Optional.of(STATE_FACTORY.bindTo(resultMapType)),
+                isDeterministic());
     }
 
     @UsedByGeneratedCode
@@ -182,7 +192,7 @@ public final class MapTransformKeyFunction
                 TypedSet.class,
                 constantType(binder, transformedKeyType),
                 divide(positionCount, constantInt(2)),
-                constantString(MAP_TRANSFORM_KEY_FUNCTION.getFunctionMetadata().getSignature().getName()))));
+                constantString(MAP_TRANSFORM_KEY_FUNCTION.getSignature().getName()))));
 
         // throw null key exception block
         BytecodeNode throwNullKeyException = new BytecodeBlock()

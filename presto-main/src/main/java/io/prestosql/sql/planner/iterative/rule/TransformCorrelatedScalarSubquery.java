@@ -19,6 +19,7 @@ import io.prestosql.matching.Captures;
 import io.prestosql.matching.Pattern;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.spi.type.BigintType;
+import io.prestosql.spi.type.BooleanType;
 import io.prestosql.sql.planner.FunctionCallBuilder;
 import io.prestosql.sql.planner.Symbol;
 import io.prestosql.sql.planner.iterative.Rule;
@@ -41,10 +42,9 @@ import java.util.Optional;
 
 import static io.prestosql.matching.Pattern.nonEmpty;
 import static io.prestosql.spi.StandardErrorCode.SUBQUERY_MULTIPLE_ROWS;
-import static io.prestosql.spi.type.BooleanType.BOOLEAN;
 import static io.prestosql.spi.type.IntegerType.INTEGER;
+import static io.prestosql.spi.type.StandardTypes.BOOLEAN;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
-import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toSqlType;
 import static io.prestosql.sql.planner.optimizations.PlanNodeSearcher.searchFrom;
 import static io.prestosql.sql.planner.optimizations.QueryCardinalityUtil.extractCardinality;
 import static io.prestosql.sql.planner.plan.CorrelatedJoinNode.Type.LEFT;
@@ -147,7 +147,7 @@ public class TransformCorrelatedScalarSubquery
                 correlatedJoinNode.getFilter(),
                 correlatedJoinNode.getOriginSubquery());
 
-        Symbol isDistinct = context.getSymbolAllocator().newSymbol("is_distinct", BOOLEAN);
+        Symbol isDistinct = context.getSymbolAllocator().newSymbol("is_distinct", BooleanType.BOOLEAN);
         MarkDistinctNode markDistinctNode = new MarkDistinctNode(
                 context.getIdAllocator().getNextId(),
                 rewrittenCorrelatedJoinNode,
@@ -168,7 +168,7 @@ public class TransformCorrelatedScalarSubquery
                                         .addArgument(INTEGER, new LongLiteral(Integer.toString(SUBQUERY_MULTIPLE_ROWS.toErrorCode().getCode())))
                                         .addArgument(VARCHAR, new StringLiteral("Scalar sub-query has returned multiple rows"))
                                         .build(),
-                                toSqlType(BOOLEAN)))));
+                                BOOLEAN))));
 
         return Result.ofPlanNode(new ProjectNode(
                 context.getIdAllocator().getNextId(),

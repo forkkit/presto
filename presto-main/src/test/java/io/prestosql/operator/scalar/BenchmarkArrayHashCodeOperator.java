@@ -15,8 +15,10 @@ package io.prestosql.operator.scalar;
 
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slices;
+import io.prestosql.metadata.FunctionKind;
 import io.prestosql.metadata.FunctionListBuilder;
 import io.prestosql.metadata.Metadata;
+import io.prestosql.metadata.Signature;
 import io.prestosql.operator.DriverYieldSignal;
 import io.prestosql.operator.project.PageProcessor;
 import io.prestosql.spi.Page;
@@ -34,7 +36,6 @@ import io.prestosql.sql.gen.ExpressionCompiler;
 import io.prestosql.sql.gen.PageFunctionCompiler;
 import io.prestosql.sql.relational.CallExpression;
 import io.prestosql.sql.relational.RowExpression;
-import io.prestosql.sql.tree.QualifiedName;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -69,7 +70,6 @@ import static io.prestosql.spi.type.BigintType.BIGINT;
 import static io.prestosql.spi.type.BooleanType.BOOLEAN;
 import static io.prestosql.spi.type.DoubleType.DOUBLE;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
-import static io.prestosql.sql.analyzer.TypeSignatureProvider.fromTypes;
 import static io.prestosql.sql.relational.Expressions.field;
 import static io.prestosql.testing.TestingConnectorSession.SESSION;
 import static io.prestosql.type.TypeUtils.checkElementNotNull;
@@ -140,10 +140,8 @@ public class BenchmarkArrayHashCodeOperator
                     throw new UnsupportedOperationException();
             }
             ArrayType arrayType = new ArrayType(elementType);
-            projectionsBuilder.add(new CallExpression(
-                    metadata.resolveFunction(QualifiedName.of(name), fromTypes(arrayType)),
-                    BIGINT,
-                    ImmutableList.of(field(0, arrayType))));
+            Signature signature = new Signature(name, FunctionKind.SCALAR, BIGINT.getTypeSignature(), arrayType.getTypeSignature());
+            projectionsBuilder.add(new CallExpression(signature, BIGINT, ImmutableList.of(field(0, arrayType))));
             blocks[0] = createChannel(POSITIONS, ARRAY_SIZE, arrayType);
 
             ImmutableList<RowExpression> projections = projectionsBuilder.build();
@@ -214,7 +212,7 @@ public class BenchmarkArrayHashCodeOperator
         @TypeParameter("T")
         @SqlType(StandardTypes.BIGINT)
         public static long oldHash(
-                @OperatorDependency(operator = HASH_CODE, argumentTypes = "T") MethodHandle hashFunction,
+                @OperatorDependency(operator = HASH_CODE, returnType = StandardTypes.BIGINT, argumentTypes = "T") MethodHandle hashFunction,
                 @TypeParameter("T") Type type,
                 @SqlType("array(T)") Block block)
         {
@@ -236,7 +234,7 @@ public class BenchmarkArrayHashCodeOperator
         @TypeParameter("T")
         @SqlType(StandardTypes.BIGINT)
         public static long anotherHash(
-                @OperatorDependency(operator = HASH_CODE, argumentTypes = "T") MethodHandle hashFunction,
+                @OperatorDependency(operator = HASH_CODE, returnType = StandardTypes.BIGINT, argumentTypes = "T") MethodHandle hashFunction,
                 @TypeParameter("T") Type type,
                 @SqlType("array(T)") Block block)
         {

@@ -16,18 +16,17 @@ package io.prestosql.orc.metadata;
 import io.prestosql.orc.metadata.statistics.StripeStatistics;
 
 import java.util.List;
-import java.util.Optional;
 
 public class Metadata
 {
-    private final List<Optional<StripeStatistics>> stripeStatistics;
+    private final List<StripeStatistics> stripeStatistics;
 
-    public Metadata(List<Optional<StripeStatistics>> stripeStatistics)
+    public Metadata(List<StripeStatistics> stripeStatistics)
     {
         this.stripeStatistics = stripeStatistics;
     }
 
-    public List<Optional<StripeStatistics>> getStripeStatsList()
+    public List<StripeStatistics> getStripeStatsList()
     {
         return stripeStatistics;
     }

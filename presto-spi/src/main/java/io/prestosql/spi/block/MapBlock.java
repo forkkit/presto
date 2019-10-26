@@ -42,9 +42,7 @@ public class MapBlock
     private final Block valueBlock;
     private final int[] hashTables; // hash to location in map;
 
-    private final long baseSizeInBytes;
-    private volatile long keySizeInBytes = -1;
-    private volatile long valueSizeInBytes = -1;
+    private volatile long sizeInBytes;
     private final long retainedSizeInBytes;
 
     /**
@@ -169,11 +167,8 @@ public class MapBlock
         this.valueBlock = valueBlock;
         this.hashTables = hashTables;
 
-        int entryCount = offsets[startOffset + positionCount] - offsets[startOffset];
-        this.baseSizeInBytes = Integer.BYTES * HASH_MULTIPLIER * (long) entryCount +
-                (Integer.BYTES + Byte.BYTES) * (long) this.positionCount;
-
-        this.retainedSizeInBytes = INSTANCE_SIZE + sizeOf(offsets) + sizeOf(mapIsNull) + sizeOf(hashTables);
+        this.sizeInBytes = -1;
+        this.retainedSizeInBytes = INSTANCE_SIZE + keyBlock.getRetainedSizeInBytes() + valueBlock.getRetainedSizeInBytes() + sizeOf(offsets) + sizeOf(mapIsNull) + sizeOf(hashTables);
     }
 
     @Override
@@ -222,32 +217,27 @@ public class MapBlock
     @Override
     public long getSizeInBytes()
     {
-        if (keySizeInBytes < 0) {
-            keySizeInBytes = calculateSize(keyBlock);
+        if (sizeInBytes < 0) {
+            calculateSize();
         }
-
-        if (valueSizeInBytes < 0) {
-            if (!valueBlock.isLoaded()) {
-                return baseSizeInBytes + keySizeInBytes + valueBlock.getSizeInBytes();
-            }
-            valueSizeInBytes = calculateSize(valueBlock);
-        }
-
-        return baseSizeInBytes + keySizeInBytes + valueSizeInBytes;
+        return sizeInBytes;
     }
 
-    private long calculateSize(Block block)
+    private void calculateSize()
     {
         int entriesStart = offsets[startOffset];
         int entriesEnd = offsets[startOffset + positionCount];
         int entryCount = entriesEnd - entriesStart;
-        return block.getRegionSizeInBytes(entriesStart, entryCount);
+        sizeInBytes = keyBlock.getRegionSizeInBytes(entriesStart, entryCount) +
+                valueBlock.getRegionSizeInBytes(entriesStart, entryCount) +
+                (Integer.BYTES + Byte.BYTES) * (long) this.positionCount +
+                Integer.BYTES * HASH_MULTIPLIER * (long) entryCount;
     }
 
     @Override
     public long getRetainedSizeInBytes()
     {
-        return retainedSizeInBytes + keyBlock.getRetainedSizeInBytes() + valueBlock.getRetainedSizeInBytes();
+        return retainedSizeInBytes;
     }
 
     @Override

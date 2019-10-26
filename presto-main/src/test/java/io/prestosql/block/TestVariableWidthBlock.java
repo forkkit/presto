@@ -83,7 +83,7 @@ public class TestVariableWidthBlock
     }
 
     @Test
-    public void testGetSizeInBytes()
+    private void testGetSizeInBytes()
     {
         int numEntries = 1000;
         VarcharType unboundedVarcharType = createUnboundedVarcharType();

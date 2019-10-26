@@ -15,39 +15,62 @@ package io.prestosql.operator.annotations;
 
 import io.prestosql.metadata.BoundVariables;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.Signature;
 import io.prestosql.spi.function.InvocationConvention;
 
 import java.lang.invoke.MethodHandle;
+import java.util.Objects;
 import java.util.Optional;
+
+import static io.prestosql.metadata.SignatureBinder.applyBoundVariables;
+import static java.util.Objects.requireNonNull;
 
 public abstract class ScalarImplementationDependency
         implements ImplementationDependency
 {
+    private final Signature signature;
     private final Optional<InvocationConvention> invocationConvention;
 
-    protected ScalarImplementationDependency(Optional<InvocationConvention> invocationConvention)
+    protected ScalarImplementationDependency(Signature signature, Optional<InvocationConvention> invocationConvention)
     {
+        this.signature = requireNonNull(signature, "signature is null");
         this.invocationConvention = invocationConvention;
     }
 
-    protected abstract ResolvedFunction getResolvedFunction(BoundVariables boundVariables, Metadata metadata);
+    public Signature getSignature()
+    {
+        return signature;
+    }
 
     @Override
     public MethodHandle resolve(BoundVariables boundVariables, Metadata metadata)
     {
-        ResolvedFunction resolvedFunction = getResolvedFunction(boundVariables, metadata);
+        Signature signature = applyBoundVariables(this.signature, boundVariables, this.signature.getArgumentTypes().size());
         if (invocationConvention.isPresent()) {
-            return metadata.getFunctionInvokerProvider().createFunctionInvoker(resolvedFunction, invocationConvention).methodHandle();
+            return metadata.getFunctionInvokerProvider().createFunctionInvoker(signature, invocationConvention).methodHandle();
         }
         else {
-            return metadata.getScalarFunctionImplementation(resolvedFunction).getMethodHandle();
+            return metadata.getScalarFunctionImplementation(signature).getMethodHandle();
         }
     }
 
     @Override
-    public abstract boolean equals(Object o);
+    public boolean equals(Object o)
+    {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        ScalarImplementationDependency that = (ScalarImplementationDependency) o;
+        return Objects.equals(signature, that.signature) &&
+                Objects.equals(invocationConvention, that.invocationConvention);
+    }
 
     @Override
-    public abstract int hashCode();
+    public int hashCode()
+    {
+        return Objects.hash(signature, invocationConvention);
+    }
 }

@@ -20,6 +20,12 @@ public class MaxByAggregationFunction
 
     public MaxByAggregationFunction()
     {
-        super(false, "Returns the value of the first argument, associated with the maximum value of the second argument");
+        super(false);
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "Returns the value of the first argument, associated with the maximum value of the second argument";
     }
 }

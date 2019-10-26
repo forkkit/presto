@@ -19,7 +19,6 @@ import org.openjdk.jol.info.ClassLayout;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
@@ -31,7 +30,6 @@ import static io.prestosql.spi.block.BlockUtil.checkValidRegion;
 import static io.prestosql.spi.block.BlockUtil.countUsedPositions;
 import static io.prestosql.spi.block.DictionaryId.randomDictionaryId;
 import static java.lang.Math.min;
-import static java.util.Collections.singletonList;
 import static java.util.Objects.requireNonNull;
 
 public class DictionaryBlock
@@ -92,13 +90,10 @@ public class DictionaryBlock
         this.dictionary = dictionary;
         this.ids = ids;
         this.dictionarySourceId = requireNonNull(dictionarySourceId, "dictionarySourceId is null");
-        this.retainedSizeInBytes = INSTANCE_SIZE + sizeOf(ids);
+        this.retainedSizeInBytes = INSTANCE_SIZE + dictionary.getRetainedSizeInBytes() + sizeOf(ids);
 
         if (dictionaryIsCompacted) {
-            if (dictionary instanceof DictionaryBlock) {
-                throw new IllegalArgumentException("compacted dictionary should not have dictionary base block");
-            }
-            this.sizeInBytes = dictionary.getSizeInBytes() + (Integer.BYTES * (long) positionCount);
+            this.sizeInBytes = this.retainedSizeInBytes;
             this.uniqueIds = dictionary.getPositionCount();
         }
     }
@@ -210,12 +205,6 @@ public class DictionaryBlock
 
     private void calculateCompactSize()
     {
-        DictionaryBlock unnested = unnest();
-        if (unnested != this) {
-            this.sizeInBytes = unnested.getSizeInBytes();
-            return;
-        }
-
         int uniqueIds = 0;
         boolean[] used = new boolean[dictionary.getPositionCount()];
         for (int i = 0; i < positionCount; i++) {
@@ -286,7 +275,7 @@ public class DictionaryBlock
     @Override
     public long getRetainedSizeInBytes()
     {
-        return retainedSizeInBytes + dictionary.getRetainedSizeInBytes();
+        return retainedSizeInBytes;
     }
 
     @Override
@@ -401,12 +390,6 @@ public class DictionaryBlock
         return new DictionaryBlock(idsOffset, getPositionCount(), loadedDictionary, ids, false, randomDictionaryId());
     }
 
-    @Override
-    public final List<Block> getChildren()
-    {
-        return singletonList(getDictionary());
-    }
-
     public Block getDictionary()
     {
         return dictionary;
@@ -430,10 +413,6 @@ public class DictionaryBlock
 
     public boolean isCompact()
     {
-        if (dictionary instanceof DictionaryBlock) {
-            return false;
-        }
-
         if (uniqueIds < 0) {
             calculateCompactSize();
         }
@@ -444,11 +423,6 @@ public class DictionaryBlock
     {
         if (isCompact()) {
             return this;
-        }
-
-        DictionaryBlock unnested = unnest();
-        if (unnested != this) {
-            return unnested.compact();
         }
 
         // determine which dictionary entries are referenced and build a reindex for them
@@ -489,28 +463,5 @@ public class DictionaryBlock
             // ignore if copy positions is not supported for the dictionary block
             return this;
         }
-    }
-
-    private DictionaryBlock unnest()
-    {
-        if (!(dictionary instanceof DictionaryBlock)) {
-            return this;
-        }
-
-        int[] ids = new int[positionCount];
-        for (int i = 0; i < positionCount; i++) {
-            ids[i] = getId(i);
-        }
-
-        Block dictionary = this.dictionary;
-        while (dictionary instanceof DictionaryBlock) {
-            DictionaryBlock nestedDictionary = (DictionaryBlock) dictionary;
-            for (int i = 0; i < positionCount; i++) {
-                ids[i] = nestedDictionary.getId(ids[i]);
-            }
-            dictionary = nestedDictionary.getDictionary();
-        }
-
-        return new DictionaryBlock(dictionary, ids);
     }
 }

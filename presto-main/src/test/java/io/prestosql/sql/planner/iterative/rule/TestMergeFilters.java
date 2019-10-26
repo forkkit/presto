@@ -14,11 +14,9 @@
 package io.prestosql.sql.planner.iterative.rule;
 
 import com.google.common.collect.ImmutableMap;
-import io.prestosql.metadata.Metadata;
 import io.prestosql.sql.planner.iterative.rule.test.BaseRuleTest;
 import org.testng.annotations.Test;
 
-import static io.prestosql.metadata.MetadataManager.createTestMetadataManager;
 import static io.prestosql.sql.planner.assertions.PlanMatchPattern.filter;
 import static io.prestosql.sql.planner.assertions.PlanMatchPattern.values;
 import static io.prestosql.sql.planner.iterative.rule.test.PlanBuilder.expression;
@@ -26,12 +24,10 @@ import static io.prestosql.sql.planner.iterative.rule.test.PlanBuilder.expressio
 public class TestMergeFilters
         extends BaseRuleTest
 {
-    private final Metadata metadata = createTestMetadataManager();
-
     @Test
     public void test()
     {
-        tester().assertThat(new MergeFilters(metadata))
+        tester().assertThat(new MergeFilters())
                 .on(p ->
                         p.filter(expression("b > 44"),
                                 p.filter(expression("a < 42"),

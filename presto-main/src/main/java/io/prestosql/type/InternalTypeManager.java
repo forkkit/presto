@@ -15,11 +15,10 @@ package io.prestosql.type;
 
 import com.google.common.collect.ImmutableList;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.Signature;
 import io.prestosql.spi.function.OperatorType;
 import io.prestosql.spi.type.ParametricType;
 import io.prestosql.spi.type.Type;
-import io.prestosql.spi.type.TypeId;
 import io.prestosql.spi.type.TypeManager;
 import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.spi.type.TypeSignatureParameter;
@@ -53,18 +52,6 @@ public final class InternalTypeManager
     }
 
     @Override
-    public Type fromSqlType(String type)
-    {
-        return metadata.fromSqlType(type);
-    }
-
-    @Override
-    public Type getType(TypeId id)
-    {
-        return metadata.getType(id);
-    }
-
-    @Override
     public Type getParameterizedType(String baseTypeName, List<TypeSignatureParameter> typeParameters)
     {
         return getType(new TypeSignature(baseTypeName, typeParameters));
@@ -73,7 +60,7 @@ public final class InternalTypeManager
     @Override
     public MethodHandle resolveOperator(OperatorType operatorType, List<? extends Type> argumentTypes)
     {
-        ResolvedFunction signature = metadata.resolveOperator(operatorType, argumentTypes);
+        Signature signature = metadata.resolveOperator(operatorType, argumentTypes);
         return metadata.getScalarFunctionImplementation(signature).getMethodHandle();
     }
 
@@ -111,12 +98,5 @@ public final class InternalTypeManager
     public Optional<Type> coerceTypeBase(Type sourceType, String resultTypeBase)
     {
         return typeCoercion.coerceTypeBase(sourceType, resultTypeBase);
-    }
-
-    @Override
-    public MethodHandle getCoercion(Type fromType, Type toType)
-    {
-        ResolvedFunction function = metadata.getCoercion(fromType, toType);
-        return metadata.getScalarFunctionImplementation(function).getMethodHandle();
     }
 }

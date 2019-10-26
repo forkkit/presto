@@ -40,7 +40,8 @@ public class TestParametricScalarImplementationValidation
                 ImmutableList.of(
                         valueTypeArgumentProperty(RETURN_NULL_ON_NULL),
                         valueTypeArgumentProperty(RETURN_NULL_ON_NULL)),
-                validFunctionMethodHandle);
+                validFunctionMethodHandle,
+                false);
         assertEquals(validFunction.getMethodHandle(), validFunctionMethodHandle);
 
         try {
@@ -49,7 +50,8 @@ public class TestParametricScalarImplementationValidation
                     ImmutableList.of(
                             valueTypeArgumentProperty(RETURN_NULL_ON_NULL),
                             valueTypeArgumentProperty(RETURN_NULL_ON_NULL)),
-                    methodHandle(TestParametricScalarImplementationValidation.class, "invalidConnectorSessionParameterPosition", long.class, long.class, ConnectorSession.class));
+                    methodHandle(TestParametricScalarImplementationValidation.class, "invalidConnectorSessionParameterPosition", long.class, long.class, ConnectorSession.class),
+                    false);
             fail("expected exception");
         }
         catch (IllegalArgumentException e) {
@@ -64,7 +66,8 @@ public class TestParametricScalarImplementationValidation
                         valueTypeArgumentProperty(RETURN_NULL_ON_NULL),
                         valueTypeArgumentProperty(RETURN_NULL_ON_NULL)),
                 validFunctionWithInstanceFactoryMethodHandle,
-                Optional.of(STATE_FACTORY));
+                Optional.of(STATE_FACTORY),
+                false);
         assertEquals(validFunctionWithInstanceFactory.getMethodHandle(), validFunctionWithInstanceFactoryMethodHandle);
 
         try {
@@ -74,7 +77,8 @@ public class TestParametricScalarImplementationValidation
                             valueTypeArgumentProperty(RETURN_NULL_ON_NULL),
                             valueTypeArgumentProperty(RETURN_NULL_ON_NULL)),
                     methodHandle(TestParametricScalarImplementationValidation.class, "invalidConnectorSessionParameterPosition", Object.class, long.class, long.class, ConnectorSession.class),
-                    Optional.of(STATE_FACTORY));
+                    Optional.of(STATE_FACTORY),
+                    false);
             fail("expected exception");
         }
         catch (IllegalArgumentException e) {

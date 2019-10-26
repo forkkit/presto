@@ -50,7 +50,6 @@ import java.util.stream.Stream;
 import static io.prestosql.spi.type.TimeZoneKey.UTC_KEY;
 import static io.prestosql.testing.assertions.Assert.assertEquals;
 import static io.prestosql.transaction.TransactionBuilder.transaction;
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Locale.ENGLISH;
 import static org.testng.Assert.assertTrue;
 
@@ -134,7 +133,7 @@ public class TestMinimalFunctionality
         List<PutRecordsRequestEntry> putRecordsRequestEntryList = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             PutRecordsRequestEntry putRecordsRequestEntry = new PutRecordsRequestEntry();
-            putRecordsRequestEntry.setData(ByteBuffer.wrap(UUID.randomUUID().toString().getBytes(UTF_8)));
+            putRecordsRequestEntry.setData(ByteBuffer.wrap(UUID.randomUUID().toString().getBytes()));
             putRecordsRequestEntry.setPartitionKey(Long.toString(i));
             putRecordsRequestEntryList.add(putRecordsRequestEntry);
         }

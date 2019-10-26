@@ -20,7 +20,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.Signature;
 import io.prestosql.operator.aggregation.InternalAggregationFunction;
 import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.sql.planner.OrderingScheme;
@@ -228,7 +228,7 @@ public class AggregationNode
                 .anyMatch(Aggregation::isDistinct);
 
         boolean decomposableFunctions = getAggregations().values().stream()
-                .map(Aggregation::getResolvedFunction)
+                .map(Aggregation::getSignature)
                 .map(metadata::getAggregateFunctionImplementation)
                 .allMatch(InternalAggregationFunction::isDecomposable);
 
@@ -370,7 +370,7 @@ public class AggregationNode
 
     public static class Aggregation
     {
-        private final ResolvedFunction resolvedFunction;
+        private final Signature signature;
         private final List<Expression> arguments;
         private final boolean distinct;
         private final Optional<Symbol> filter;
@@ -379,14 +379,14 @@ public class AggregationNode
 
         @JsonCreator
         public Aggregation(
-                @JsonProperty("resolvedFunction") ResolvedFunction resolvedFunction,
+                @JsonProperty("signature") Signature signature,
                 @JsonProperty("arguments") List<Expression> arguments,
                 @JsonProperty("distinct") boolean distinct,
                 @JsonProperty("filter") Optional<Symbol> filter,
                 @JsonProperty("orderingScheme") Optional<OrderingScheme> orderingScheme,
                 @JsonProperty("mask") Optional<Symbol> mask)
         {
-            this.resolvedFunction = requireNonNull(resolvedFunction, "signature is null");
+            this.signature = requireNonNull(signature, "signature is null");
             this.arguments = ImmutableList.copyOf(requireNonNull(arguments, "arguments is null"));
             for (Expression argument : arguments) {
                 checkArgument(argument instanceof SymbolReference || argument instanceof LambdaExpression,
@@ -399,9 +399,9 @@ public class AggregationNode
         }
 
         @JsonProperty
-        public ResolvedFunction getResolvedFunction()
+        public Signature getSignature()
         {
-            return resolvedFunction;
+            return signature;
         }
 
         @JsonProperty
@@ -445,7 +445,7 @@ public class AggregationNode
             }
             Aggregation that = (Aggregation) o;
             return distinct == that.distinct &&
-                    Objects.equals(resolvedFunction, that.resolvedFunction) &&
+                    Objects.equals(signature, that.signature) &&
                     Objects.equals(arguments, that.arguments) &&
                     Objects.equals(filter, that.filter) &&
                     Objects.equals(orderingScheme, that.orderingScheme) &&
@@ -455,18 +455,18 @@ public class AggregationNode
         @Override
         public int hashCode()
         {
-            return Objects.hash(resolvedFunction, arguments, distinct, filter, orderingScheme, mask);
+            return Objects.hash(signature, arguments, distinct, filter, orderingScheme, mask);
         }
 
         private void verifyArguments(Step step)
         {
             int expectedArgumentCount;
             if (step == SINGLE || step == Step.PARTIAL) {
-                expectedArgumentCount = resolvedFunction.getSignature().getArgumentTypes().size();
+                expectedArgumentCount = signature.getArgumentTypes().size();
             }
             else {
                 // Intermediate and final steps get the intermediate value and the lambda functions
-                expectedArgumentCount = 1 + (int) resolvedFunction.getSignature().getArgumentTypes().stream()
+                expectedArgumentCount = 1 + (int) signature.getArgumentTypes().stream()
                         .map(TypeSignature::getBase)
                         .filter(FunctionType.NAME::equals)
                         .count();
@@ -476,7 +476,7 @@ public class AggregationNode
                     expectedArgumentCount == arguments.size(),
                     "%s aggregation function %s has %s arguments, but %s arguments were provided to function call",
                     step,
-                    resolvedFunction.getSignature(),
+                    signature,
                     expectedArgumentCount,
                     arguments.size());
         }

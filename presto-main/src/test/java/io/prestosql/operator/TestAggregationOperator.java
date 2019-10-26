@@ -15,12 +15,12 @@ package io.prestosql.operator;
 
 import com.google.common.collect.ImmutableList;
 import io.prestosql.metadata.Metadata;
+import io.prestosql.metadata.Signature;
 import io.prestosql.operator.AggregationOperator.AggregationOperatorFactory;
 import io.prestosql.operator.aggregation.InternalAggregationFunction;
 import io.prestosql.spi.Page;
 import io.prestosql.sql.planner.plan.AggregationNode.Step;
 import io.prestosql.sql.planner.plan.PlanNodeId;
-import io.prestosql.sql.tree.QualifiedName;
 import io.prestosql.testing.MaterializedResult;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -35,6 +35,7 @@ import static com.google.common.collect.Iterables.getOnlyElement;
 import static io.airlift.concurrent.Threads.daemonThreadsNamed;
 import static io.prestosql.RowPagesBuilder.rowPagesBuilder;
 import static io.prestosql.SessionTestUtils.TEST_SESSION;
+import static io.prestosql.metadata.FunctionKind.AGGREGATE;
 import static io.prestosql.metadata.MetadataManager.createTestMetadataManager;
 import static io.prestosql.operator.OperatorAssertion.assertOperatorEquals;
 import static io.prestosql.operator.OperatorAssertion.toPages;
@@ -42,7 +43,6 @@ import static io.prestosql.spi.type.BigintType.BIGINT;
 import static io.prestosql.spi.type.DoubleType.DOUBLE;
 import static io.prestosql.spi.type.RealType.REAL;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
-import static io.prestosql.sql.analyzer.TypeSignatureProvider.fromTypes;
 import static io.prestosql.testing.MaterializedResult.resultBuilder;
 import static io.prestosql.testing.TestingTaskContext.createTaskContext;
 import static java.util.Collections.emptyIterator;
@@ -58,15 +58,15 @@ public class TestAggregationOperator
     private static final Metadata metadata = createTestMetadataManager();
 
     private static final InternalAggregationFunction LONG_AVERAGE = metadata.getAggregateFunctionImplementation(
-            metadata.resolveFunction(QualifiedName.of("avg"), fromTypes(BIGINT)));
+            new Signature("avg", AGGREGATE, DOUBLE.getTypeSignature(), BIGINT.getTypeSignature()));
     private static final InternalAggregationFunction DOUBLE_SUM = metadata.getAggregateFunctionImplementation(
-            metadata.resolveFunction(QualifiedName.of("sum"), fromTypes(DOUBLE)));
+            new Signature("sum", AGGREGATE, DOUBLE.getTypeSignature(), DOUBLE.getTypeSignature()));
     private static final InternalAggregationFunction LONG_SUM = metadata.getAggregateFunctionImplementation(
-            metadata.resolveFunction(QualifiedName.of("sum"), fromTypes(BIGINT)));
+            new Signature("sum", AGGREGATE, BIGINT.getTypeSignature(), BIGINT.getTypeSignature()));
     private static final InternalAggregationFunction REAL_SUM = metadata.getAggregateFunctionImplementation(
-            metadata.resolveFunction(QualifiedName.of("sum"), fromTypes(REAL)));
+            new Signature("sum", AGGREGATE, REAL.getTypeSignature(), REAL.getTypeSignature()));
     private static final InternalAggregationFunction COUNT = metadata.getAggregateFunctionImplementation(
-            metadata.resolveFunction(QualifiedName.of("count"), ImmutableList.of()));
+            new Signature("count", AGGREGATE, BIGINT.getTypeSignature()));
 
     private ExecutorService executor;
     private ScheduledExecutorService scheduledExecutor;
@@ -89,9 +89,9 @@ public class TestAggregationOperator
     public void testAggregation()
     {
         InternalAggregationFunction countVarcharColumn = metadata.getAggregateFunctionImplementation(
-                metadata.resolveFunction(QualifiedName.of("count"), fromTypes(VARCHAR)));
+                new Signature("count", AGGREGATE, BIGINT.getTypeSignature(), VARCHAR.getTypeSignature()));
         InternalAggregationFunction maxVarcharColumn = metadata.getAggregateFunctionImplementation(
-                metadata.resolveFunction(QualifiedName.of("max"), fromTypes(VARCHAR)));
+                new Signature("max", AGGREGATE, VARCHAR.getTypeSignature(), VARCHAR.getTypeSignature()));
         List<Page> input = rowPagesBuilder(VARCHAR, BIGINT, VARCHAR, BIGINT, REAL, DOUBLE, VARCHAR)
                 .addSequencePage(100, 0, 0, 300, 500, 400, 500, 500)
                 .build();

@@ -18,7 +18,7 @@ import io.airlift.stats.cardinality.HyperLogLog;
 import io.prestosql.spi.block.Block;
 import io.prestosql.spi.block.BlockBuilder;
 import io.prestosql.spi.type.SqlVarbinary;
-import io.prestosql.spi.type.Type;
+import io.prestosql.spi.type.StandardTypes;
 
 import java.util.List;
 
@@ -51,9 +51,9 @@ public class TestMergeHyperLogLogAggregation
     }
 
     @Override
-    protected List<Type> getFunctionParameterTypes()
+    protected List<String> getFunctionParameterTypes()
     {
-        return ImmutableList.of(HYPER_LOG_LOG);
+        return ImmutableList.of(StandardTypes.HYPER_LOG_LOG);
     }
 
     @Override

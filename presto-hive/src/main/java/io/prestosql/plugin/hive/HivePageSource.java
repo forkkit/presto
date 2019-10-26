@@ -21,7 +21,6 @@ import io.prestosql.plugin.hive.coercions.FloatToDoubleCoercer;
 import io.prestosql.plugin.hive.coercions.IntegerNumberToVarcharCoercer;
 import io.prestosql.plugin.hive.coercions.IntegerNumberUpscaleCoercer;
 import io.prestosql.plugin.hive.coercions.VarcharToIntegerNumberCoercer;
-import io.prestosql.plugin.hive.util.HiveBucketing.BucketingVersion;
 import io.prestosql.spi.Page;
 import io.prestosql.spi.PrestoException;
 import io.prestosql.spi.block.ArrayBlock;
@@ -149,7 +148,7 @@ public class HivePageSource
             HiveColumnHandle column = columnMapping.getHiveColumnHandle();
 
             String name = column.getName();
-            Type type = column.getType();
+            Type type = typeManager.getType(column.getTypeSignature());
             types[columnIndex] = type;
 
             if (columnMapping.getCoercionFrom().isPresent()) {
@@ -248,7 +247,17 @@ public class HivePageSource
 
             if (bucketAdapter.isPresent()) {
                 IntArrayList rowsToKeep = bucketAdapter.get().computeEligibleRowIds(dataPage);
-                dataPage = dataPage.getPositions(rowsToKeep.elements(), 0, rowsToKeep.size());
+                Block[] adaptedBlocks = new Block[dataPage.getChannelCount()];
+                for (int i = 0; i < adaptedBlocks.length; i++) {
+                    Block block = dataPage.getBlock(i);
+                    if (!block.isLoaded()) {
+                        adaptedBlocks[i] = new LazyBlock(rowsToKeep.size(), new RowFilterLazyBlockLoader(dataPage.getBlock(i), rowsToKeep));
+                    }
+                    else {
+                        adaptedBlocks[i] = block.getPositions(rowsToKeep.elements(), 0, rowsToKeep.size());
+                    }
+                }
+                dataPage = new Page(rowsToKeep.size(), adaptedBlocks);
             }
 
             int batchSize = dataPage.getPositionCount();
@@ -330,8 +339,8 @@ public class HivePageSource
 
     private static Function<Block, Block> createCoercer(TypeManager typeManager, HiveType fromHiveType, HiveType toHiveType)
     {
-        Type fromType = fromHiveType.getType(typeManager);
-        Type toType = toHiveType.getType(typeManager);
+        Type fromType = typeManager.getType(fromHiveType.getTypeSignature());
+        Type toType = typeManager.getType(toHiveType.getTypeSignature());
         if (toType instanceof VarcharType && (fromHiveType.equals(HIVE_BYTE) || fromHiveType.equals(HIVE_SHORT) || fromHiveType.equals(HIVE_INT) || fromHiveType.equals(HIVE_LONG))) {
             return new IntegerNumberToVarcharCoercer<>(fromType, (VarcharType) toType);
         }
@@ -507,7 +516,7 @@ public class HivePageSource
     }
 
     private static final class CoercionLazyBlockLoader
-            implements LazyBlockLoader
+            implements LazyBlockLoader<LazyBlock>
     {
         private final Function<Block, Block> coercer;
         private Block block;
@@ -519,15 +528,38 @@ public class HivePageSource
         }
 
         @Override
-        public Block load()
+        public void load(LazyBlock lazyBlock)
         {
             checkState(block != null, "Already loaded");
 
-            Block loaded = coercer.apply(block.getLoadedBlock());
+            lazyBlock.setBlock(coercer.apply(block.getLoadedBlock()));
+
             // clear reference to loader to free resources, since load was successful
             block = null;
+        }
+    }
 
-            return loaded;
+    private static final class RowFilterLazyBlockLoader
+            implements LazyBlockLoader<LazyBlock>
+    {
+        private Block block;
+        private final IntArrayList rowsToKeep;
+
+        public RowFilterLazyBlockLoader(Block block, IntArrayList rowsToKeep)
+        {
+            this.block = requireNonNull(block, "block is null");
+            this.rowsToKeep = requireNonNull(rowsToKeep, "rowsToKeep is null");
+        }
+
+        @Override
+        public void load(LazyBlock lazyBlock)
+        {
+            checkState(block != null, "Already loaded");
+
+            lazyBlock.setBlock(block.getPositions(rowsToKeep.elements(), 0, rowsToKeep.size()));
+
+            // clear reference to loader to free resources, since load was successful
+            block = null;
         }
     }
 
@@ -544,7 +576,6 @@ public class HivePageSource
     public static class BucketAdapter
     {
         private final int[] bucketColumns;
-        private final BucketingVersion bucketingVersion;
         private final int bucketToKeep;
         private final int tableBucketCount;
         private final int partitionBucketCount; // for sanity check only
@@ -553,7 +584,6 @@ public class HivePageSource
         public BucketAdapter(BucketAdaptation bucketAdaptation)
         {
             this.bucketColumns = bucketAdaptation.getBucketColumnIndices();
-            this.bucketingVersion = bucketAdaptation.getBucketingVersion();
             this.bucketToKeep = bucketAdaptation.getBucketToKeep();
             this.typeInfoList = bucketAdaptation.getBucketColumnHiveTypes().stream()
                     .map(HiveType::getTypeInfo)
@@ -567,7 +597,7 @@ public class HivePageSource
             IntArrayList ids = new IntArrayList(page.getPositionCount());
             Page bucketColumnsPage = extractColumns(page, bucketColumns);
             for (int position = 0; position < page.getPositionCount(); position++) {
-                int bucket = getHiveBucket(bucketingVersion, tableBucketCount, typeInfoList, bucketColumnsPage, position);
+                int bucket = getHiveBucket(tableBucketCount, typeInfoList, bucketColumnsPage, position);
                 if ((bucket - bucketToKeep) % partitionBucketCount != 0) {
                     throw new PrestoException(HIVE_INVALID_BUCKET_FILES, format(
                             "A row that is supposed to be in bucket %s is encountered. Only rows in bucket %s (modulo %s) are expected",

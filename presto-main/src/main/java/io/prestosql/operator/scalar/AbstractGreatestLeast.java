@@ -25,7 +25,6 @@ import io.airlift.bytecode.control.IfStatement;
 import io.prestosql.annotation.UsedByGeneratedCode;
 import io.prestosql.metadata.BoundVariables;
 import io.prestosql.metadata.FunctionKind;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlScalarFunction;
@@ -48,11 +47,13 @@ import static io.airlift.bytecode.Access.STATIC;
 import static io.airlift.bytecode.Access.a;
 import static io.airlift.bytecode.Parameter.arg;
 import static io.airlift.bytecode.ParameterizedType.type;
+import static io.prestosql.metadata.Signature.internalOperator;
 import static io.prestosql.metadata.Signature.orderableTypeParameter;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.ArgumentProperty.valueTypeArgumentProperty;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.NullConvention.RETURN_NULL_ON_NULL;
 import static io.prestosql.spi.StandardErrorCode.INVALID_FUNCTION_ARGUMENT;
 import static io.prestosql.spi.StandardErrorCode.NOT_SUPPORTED;
+import static io.prestosql.spi.type.BooleanType.BOOLEAN;
 import static io.prestosql.spi.type.DoubleType.DOUBLE;
 import static io.prestosql.sql.gen.BytecodeUtils.invoke;
 import static io.prestosql.util.CompilerUtils.defineClass;
@@ -71,21 +72,29 @@ public abstract class AbstractGreatestLeast
 
     private final OperatorType operatorType;
 
-    protected AbstractGreatestLeast(String name, OperatorType operatorType, String description)
+    protected AbstractGreatestLeast(String name, OperatorType operatorType)
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        name,
-                        FunctionKind.SCALAR,
-                        ImmutableList.of(orderableTypeParameter("E")),
-                        ImmutableList.of(),
-                        new TypeSignature("E"),
-                        ImmutableList.of(new TypeSignature("E")),
-                        true),
-                false,
-                true,
-                description));
+        super(new Signature(
+                name,
+                FunctionKind.SCALAR,
+                ImmutableList.of(orderableTypeParameter("E")),
+                ImmutableList.of(),
+                new TypeSignature("E"),
+                ImmutableList.of(new TypeSignature("E")),
+                true));
         this.operatorType = requireNonNull(operatorType, "operatorType is null");
+    }
+
+    @Override
+    public boolean isHidden()
+    {
+        return false;
+    }
+
+    @Override
+    public boolean isDeterministic()
+    {
+        return true;
     }
 
     @Override
@@ -94,19 +103,20 @@ public abstract class AbstractGreatestLeast
         Type type = boundVariables.getTypeVariable("E");
         checkArgument(type.isOrderable(), "Type must be orderable");
 
-        MethodHandle compareMethod = metadata.getScalarFunctionImplementation(metadata.resolveOperator(operatorType, ImmutableList.of(type, type))).getMethodHandle();
+        MethodHandle compareMethod = metadata.getScalarFunctionImplementation(internalOperator(operatorType, BOOLEAN, ImmutableList.of(type, type))).getMethodHandle();
 
         List<Class<?>> javaTypes = IntStream.range(0, arity)
                 .mapToObj(i -> type.getJavaType())
                 .collect(toImmutableList());
 
         Class<?> clazz = generate(javaTypes, type, compareMethod);
-        MethodHandle methodHandle = methodHandle(clazz, getFunctionMetadata().getSignature().getName(), javaTypes.toArray(new Class<?>[javaTypes.size()]));
+        MethodHandle methodHandle = methodHandle(clazz, getSignature().getName(), javaTypes.toArray(new Class<?>[javaTypes.size()]));
 
         return new ScalarFunctionImplementation(
                 false,
                 nCopies(javaTypes.size(), valueTypeArgumentProperty(RETURN_NULL_ON_NULL)),
-                methodHandle);
+                methodHandle,
+                isDeterministic());
     }
 
     @UsedByGeneratedCode
@@ -119,15 +129,14 @@ public abstract class AbstractGreatestLeast
 
     private Class<?> generate(List<Class<?>> javaTypes, Type type, MethodHandle compareMethod)
     {
-        Signature signature = getFunctionMetadata().getSignature();
-        checkCondition(javaTypes.size() <= 127, NOT_SUPPORTED, "Too many arguments for function call %s()", signature.getName());
+        checkCondition(javaTypes.size() <= 127, NOT_SUPPORTED, "Too many arguments for function call %s()", getSignature().getName());
         String javaTypeName = javaTypes.stream()
                 .map(Class::getSimpleName)
                 .collect(joining());
 
         ClassDefinition definition = new ClassDefinition(
                 a(PUBLIC, FINAL),
-                makeClassName(javaTypeName + "$" + signature.getName()),
+                makeClassName(javaTypeName + "$" + getSignature().getName()),
                 type(Object.class));
 
         definition.declareDefaultConstructor(a(PRIVATE));
@@ -138,7 +147,7 @@ public abstract class AbstractGreatestLeast
 
         MethodDefinition method = definition.declareMethod(
                 a(PUBLIC, STATIC),
-                signature.getName(),
+                getSignature().getName(),
                 type(javaTypes.get(0)),
                 parameters);
 
@@ -150,7 +159,7 @@ public abstract class AbstractGreatestLeast
         if (type.equals(DOUBLE)) {
             for (Parameter parameter : parameters) {
                 body.append(parameter);
-                body.append(invoke(binder.bind(CHECK_NOT_NAN.bindTo(signature.getName())), "checkNotNaN"));
+                body.append(invoke(binder.bind(CHECK_NOT_NAN.bindTo(getSignature().getName())), "checkNotNaN"));
             }
         }
 

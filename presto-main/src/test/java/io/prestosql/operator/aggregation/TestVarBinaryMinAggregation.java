@@ -20,12 +20,11 @@ import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
 import io.prestosql.spi.block.Block;
 import io.prestosql.spi.block.BlockBuilder;
-import io.prestosql.spi.type.Type;
+import io.prestosql.spi.type.StandardTypes;
 
 import java.util.List;
 
 import static io.prestosql.spi.type.VarbinaryType.VARBINARY;
-import static io.prestosql.spi.type.VarcharType.VARCHAR;
 
 public class TestVarBinaryMinAggregation
         extends AbstractTestAggregationFunction
@@ -61,8 +60,8 @@ public class TestVarBinaryMinAggregation
     }
 
     @Override
-    protected List<Type> getFunctionParameterTypes()
+    protected List<String> getFunctionParameterTypes()
     {
-        return ImmutableList.of(VARCHAR);
+        return ImmutableList.of(StandardTypes.VARCHAR);
     }
 }

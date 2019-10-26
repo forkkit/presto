@@ -68,10 +68,10 @@ public class MockManagedQueryExecution
         this.cpuUsage = requireNonNull(cpuUsage, "cpuUsage is null");
     }
 
-    public void consumeCpuTimeMillis(long cpuTimeDeltaMillis)
+    public void consumeCpuTime(Duration cpuTimeDelta)
     {
         checkState(state == RUNNING, "cannot consume CPU in a non-running state");
-        long newCpuTime = cpuUsage.toMillis() + cpuTimeDeltaMillis;
+        long newCpuTime = cpuUsage.toMillis() + cpuTimeDelta.toMillis();
         this.cpuUsage = new Duration(newCpuTime, MILLISECONDS);
     }
 
@@ -313,9 +313,9 @@ public class MockManagedQueryExecution
             return this;
         }
 
-        public MockManagedQueryExecutionBuilder withInitialCpuUsageMillis(long cpuUsageMillis)
+        public MockManagedQueryExecutionBuilder withInitialCpuUsage(Duration cpuUsage)
         {
-            this.cpuUsage = new Duration(cpuUsageMillis, MILLISECONDS);
+            this.cpuUsage = cpuUsage;
             return this;
         }
 

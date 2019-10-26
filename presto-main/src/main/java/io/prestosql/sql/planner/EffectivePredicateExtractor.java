@@ -89,18 +89,16 @@ public class EffectivePredicateExtractor
 
     private final DomainTranslator domainTranslator;
     private final Metadata metadata;
-    private final boolean useTableProperties;
 
-    public EffectivePredicateExtractor(DomainTranslator domainTranslator, Metadata metadata, boolean useTableProperties)
+    public EffectivePredicateExtractor(DomainTranslator domainTranslator, Metadata metadata)
     {
         this.domainTranslator = requireNonNull(domainTranslator, "domainTranslator is null");
         this.metadata = requireNonNull(metadata, "metadata is null");
-        this.useTableProperties = useTableProperties;
     }
 
     public Expression extract(Session session, PlanNode node, TypeProvider types, TypeAnalyzer typeAnalyzer)
     {
-        return node.accept(new Visitor(domainTranslator, metadata, session, types, typeAnalyzer, useTableProperties), null);
+        return node.accept(new Visitor(domainTranslator, metadata, session, types, typeAnalyzer), null);
     }
 
     private static class Visitor
@@ -111,16 +109,14 @@ public class EffectivePredicateExtractor
         private final Session session;
         private final TypeProvider types;
         private final TypeAnalyzer typeAnalyzer;
-        private final boolean useTableProperties;
 
-        public Visitor(DomainTranslator domainTranslator, Metadata metadata, Session session, TypeProvider types, TypeAnalyzer typeAnalyzer, boolean useTableProperties)
+        public Visitor(DomainTranslator domainTranslator, Metadata metadata, Session session, TypeProvider types, TypeAnalyzer typeAnalyzer)
         {
             this.domainTranslator = requireNonNull(domainTranslator, "domainTranslator is null");
             this.metadata = requireNonNull(metadata, "metadata is null");
             this.session = requireNonNull(session, "session is null");
             this.types = requireNonNull(types, "types is null");
             this.typeAnalyzer = requireNonNull(typeAnalyzer, "typeAnalyzer is null");
-            this.useTableProperties = useTableProperties;
         }
 
         @Override
@@ -154,9 +150,9 @@ public class EffectivePredicateExtractor
             Expression predicate = node.getPredicate();
 
             // Remove non-deterministic conjuncts
-            predicate = filterDeterministicConjuncts(metadata, predicate);
+            predicate = filterDeterministicConjuncts(predicate);
 
-            return combineConjuncts(metadata, predicate, underlyingPredicate);
+            return combineConjuncts(predicate, underlyingPredicate);
         }
 
         @Override
@@ -186,7 +182,6 @@ public class EffectivePredicateExtractor
                     .collect(toImmutableList());
 
             return pullExpressionThroughSymbols(combineConjuncts(
-                    metadata,
                     ImmutableList.<Expression>builder()
                             .addAll(projectionEqualities)
                             .add(underlyingPredicate)
@@ -223,13 +218,8 @@ public class EffectivePredicateExtractor
         {
             Map<ColumnHandle, Symbol> assignments = ImmutableBiMap.copyOf(node.getAssignments()).inverse();
 
-            TupleDomain<ColumnHandle> predicate = node.getEnforcedConstraint();
-            if (useTableProperties && !node.getEnforcedConstraint().isAll()) {
-                // extract table properties only when predicate has been pushed to table scan at least once
-                predicate = metadata.getTableProperties(session, node.getTable()).getPredicate();
-            }
-
             // TODO: replace with metadata.getTableProperties() when table layouts are fully removed
+            TupleDomain<ColumnHandle> predicate = node.getEnforcedConstraint();
             return domainTranslator.toPredicate(predicate.simplify().transform(assignments::get));
         }
 
@@ -260,7 +250,7 @@ public class EffectivePredicateExtractor
                 case INNER:
                 case LEFT:
                     return pullExpressionThroughSymbols(
-                            combineConjuncts(metadata, node.getFilter().orElse(TRUE_LITERAL), sourcePredicate),
+                            combineConjuncts(node.getFilter().orElse(TRUE_LITERAL), sourcePredicate),
                             node.getOutputSymbols());
                 case RIGHT:
                 case FULL:
@@ -282,26 +272,26 @@ public class EffectivePredicateExtractor
 
             switch (node.getType()) {
                 case INNER:
-                    return pullExpressionThroughSymbols(combineConjuncts(metadata, ImmutableList.<Expression>builder()
+                    return pullExpressionThroughSymbols(combineConjuncts(ImmutableList.<Expression>builder()
                             .add(leftPredicate)
                             .add(rightPredicate)
-                            .add(combineConjuncts(metadata, joinConjuncts))
+                            .add(combineConjuncts(joinConjuncts))
                             .add(node.getFilter().orElse(TRUE_LITERAL))
                             .build()), node.getOutputSymbols());
                 case LEFT:
-                    return combineConjuncts(metadata, ImmutableList.<Expression>builder()
+                    return combineConjuncts(ImmutableList.<Expression>builder()
                             .add(pullExpressionThroughSymbols(leftPredicate, node.getOutputSymbols()))
                             .addAll(pullNullableConjunctsThroughOuterJoin(extractConjuncts(rightPredicate), node.getOutputSymbols(), node.getRight().getOutputSymbols()::contains))
                             .addAll(pullNullableConjunctsThroughOuterJoin(joinConjuncts, node.getOutputSymbols(), node.getRight().getOutputSymbols()::contains))
                             .build());
                 case RIGHT:
-                    return combineConjuncts(metadata, ImmutableList.<Expression>builder()
+                    return combineConjuncts(ImmutableList.<Expression>builder()
                             .add(pullExpressionThroughSymbols(rightPredicate, node.getOutputSymbols()))
                             .addAll(pullNullableConjunctsThroughOuterJoin(extractConjuncts(leftPredicate), node.getOutputSymbols(), node.getLeft().getOutputSymbols()::contains))
                             .addAll(pullNullableConjunctsThroughOuterJoin(joinConjuncts, node.getOutputSymbols(), node.getLeft().getOutputSymbols()::contains))
                             .build());
                 case FULL:
-                    return combineConjuncts(metadata, ImmutableList.<Expression>builder()
+                    return combineConjuncts(ImmutableList.<Expression>builder()
                             .addAll(pullNullableConjunctsThroughOuterJoin(extractConjuncts(leftPredicate), node.getOutputSymbols(), node.getLeft().getOutputSymbols()::contains))
                             .addAll(pullNullableConjunctsThroughOuterJoin(extractConjuncts(rightPredicate), node.getOutputSymbols(), node.getRight().getOutputSymbols()::contains))
                             .addAll(pullNullableConjunctsThroughOuterJoin(joinConjuncts, node.getOutputSymbols(), node.getLeft().getOutputSymbols()::contains, node.getRight().getOutputSymbols()::contains))
@@ -337,7 +327,7 @@ public class EffectivePredicateExtractor
                 for (int row = 0; row < node.getRows().size(); row++) {
                     Expression value = node.getRows().get(row).get(column);
 
-                    if (!DeterminismEvaluator.isDeterministic(value, metadata)) {
+                    if (!DeterminismEvaluator.isDeterministic(value)) {
                         nonDeterministic = true;
                         break;
                     }
@@ -382,7 +372,7 @@ public class EffectivePredicateExtractor
             return domainTranslator.toPredicate(TupleDomain.withColumnDomains(domains.build()).simplify());
         }
 
-        private Iterable<Expression> pullNullableConjunctsThroughOuterJoin(List<Expression> conjuncts, Collection<Symbol> outputSymbols, Predicate<Symbol>... nullSymbolScopes)
+        private static Iterable<Expression> pullNullableConjunctsThroughOuterJoin(List<Expression> conjuncts, Collection<Symbol> outputSymbols, Predicate<Symbol>... nullSymbolScopes)
         {
             // Conjuncts without any symbol dependencies cannot be applied to the effective predicate (e.g. FALSE literal)
             return conjuncts.stream()
@@ -407,12 +397,12 @@ public class EffectivePredicateExtractor
 
             switch (node.getType()) {
                 case INNER:
-                    return combineConjuncts(metadata, ImmutableList.<Expression>builder()
+                    return combineConjuncts(ImmutableList.<Expression>builder()
                             .add(pullExpressionThroughSymbols(leftPredicate, node.getOutputSymbols()))
                             .add(pullExpressionThroughSymbols(rightPredicate, node.getOutputSymbols()))
                             .build());
                 case LEFT:
-                    return combineConjuncts(metadata, ImmutableList.<Expression>builder()
+                    return combineConjuncts(ImmutableList.<Expression>builder()
                             .add(pullExpressionThroughSymbols(leftPredicate, node.getOutputSymbols()))
                             .addAll(pullNullableConjunctsThroughOuterJoin(extractConjuncts(rightPredicate), node.getOutputSymbols(), node.getRight().getOutputSymbols()::contains))
                             .build());
@@ -434,7 +424,6 @@ public class EffectivePredicateExtractor
                         .collect(toImmutableList());
 
                 sourceOutputConjuncts.add(ImmutableSet.copyOf(extractConjuncts(pullExpressionThroughSymbols(combineConjuncts(
-                        metadata,
                         ImmutableList.<Expression>builder()
                                 .addAll(equalities)
                                 .add(underlyingPredicate)
@@ -450,17 +439,17 @@ public class EffectivePredicateExtractor
                 potentialOutputConjuncts = Sets.intersection(potentialOutputConjuncts, iterator.next());
             }
 
-            return combineConjuncts(metadata, potentialOutputConjuncts);
+            return combineConjuncts(potentialOutputConjuncts);
         }
 
-        private Expression pullExpressionThroughSymbols(Expression expression, Collection<Symbol> symbols)
+        private static Expression pullExpressionThroughSymbols(Expression expression, Collection<Symbol> symbols)
         {
-            EqualityInference equalityInference = EqualityInference.newInstance(metadata, expression);
+            EqualityInference equalityInference = EqualityInference.newInstance(expression);
 
             ImmutableList.Builder<Expression> effectiveConjuncts = ImmutableList.builder();
             Set<Symbol> scope = ImmutableSet.copyOf(symbols);
-            for (Expression conjunct : EqualityInference.nonInferrableConjuncts(metadata, expression)) {
-                if (DeterminismEvaluator.isDeterministic(conjunct, metadata)) {
+            for (Expression conjunct : EqualityInference.nonInferrableConjuncts(expression)) {
+                if (DeterminismEvaluator.isDeterministic(conjunct)) {
                     Expression rewritten = equalityInference.rewrite(conjunct, scope);
                     if (rewritten != null) {
                         effectiveConjuncts.add(rewritten);
@@ -470,7 +459,7 @@ public class EffectivePredicateExtractor
 
             effectiveConjuncts.addAll(equalityInference.generateEqualitiesPartitionedBy(scope).getScopeEqualities());
 
-            return combineConjuncts(metadata, effectiveConjuncts.build());
+            return combineConjuncts(effectiveConjuncts.build());
         }
     }
 }

@@ -16,6 +16,7 @@ package io.prestosql.type;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Shorts;
 import com.google.common.primitives.SignedBytes;
 import io.airlift.slice.DynamicSliceOutput;
@@ -54,7 +55,7 @@ import static io.prestosql.spi.type.IntegerType.INTEGER;
 import static io.prestosql.spi.type.RealType.REAL;
 import static io.prestosql.spi.type.SmallintType.SMALLINT;
 import static io.prestosql.spi.type.TinyintType.TINYINT;
-import static io.prestosql.spi.type.TypeSignatureParameter.typeVariable;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.spi.type.UnscaledDecimal128Arithmetic.multiply;
 import static io.prestosql.spi.type.UnscaledDecimal128Arithmetic.overflows;
 import static io.prestosql.spi.type.UnscaledDecimal128Arithmetic.rescale;
@@ -89,8 +90,8 @@ public final class DecimalCasts
     public static final SqlScalarFunction DOUBLE_TO_DECIMAL_CAST = castFunctionToDecimalFrom(DOUBLE.getTypeSignature(), "doubleToShortDecimal", "doubleToLongDecimal");
     public static final SqlScalarFunction DECIMAL_TO_REAL_CAST = castFunctionFromDecimalTo(REAL.getTypeSignature(), "shortDecimalToReal", "longDecimalToReal");
     public static final SqlScalarFunction REAL_TO_DECIMAL_CAST = castFunctionToDecimalFrom(REAL.getTypeSignature(), "realToShortDecimal", "realToLongDecimal");
-    public static final SqlScalarFunction DECIMAL_TO_VARCHAR_CAST = castFunctionFromDecimalTo(new TypeSignature("varchar", typeVariable("x")), "shortDecimalToVarchar", "longDecimalToVarchar");
-    public static final SqlScalarFunction VARCHAR_TO_DECIMAL_CAST = castFunctionToDecimalFrom(new TypeSignature("varchar", typeVariable("x")), "varcharToShortDecimal", "varcharToLongDecimal");
+    public static final SqlScalarFunction DECIMAL_TO_VARCHAR_CAST = castFunctionFromDecimalTo(parseTypeSignature("varchar(x)", ImmutableSet.of("x")), "shortDecimalToVarchar", "longDecimalToVarchar");
+    public static final SqlScalarFunction VARCHAR_TO_DECIMAL_CAST = castFunctionToDecimalFrom(parseTypeSignature("varchar(x)", ImmutableSet.of("x")), "varcharToShortDecimal", "varcharToLongDecimal");
     public static final SqlScalarFunction DECIMAL_TO_JSON_CAST = castFunctionFromDecimalTo(JSON.getTypeSignature(), "shortDecimalToJson", "longDecimalToJson");
     public static final SqlScalarFunction JSON_TO_DECIMAL_CAST = castFunctionToDecimalFromBuilder(JSON.getTypeSignature(), true, "jsonToShortDecimal", "jsonToLongDecimal");
 
@@ -99,7 +100,7 @@ public final class DecimalCasts
         Signature signature = Signature.builder()
                 .kind(SCALAR)
                 .operatorType(CAST)
-                .argumentTypes(new TypeSignature("decimal", typeVariable("precision"), typeVariable("scale")))
+                .argumentTypes(parseTypeSignature("decimal(precision,scale)", ImmutableSet.of("precision", "scale")))
                 .returnType(to)
                 .build();
         return SqlScalarFunction.builder(DecimalCasts.class)
@@ -134,7 +135,7 @@ public final class DecimalCasts
                 .kind(SCALAR)
                 .operatorType(CAST)
                 .argumentTypes(from)
-                .returnType(new TypeSignature("decimal", typeVariable("precision"), typeVariable("scale")))
+                .returnType(parseTypeSignature("decimal(precision,scale)", ImmutableSet.of("precision", "scale")))
                 .build();
         return SqlScalarFunction.builder(DecimalCasts.class)
                 .signature(signature)

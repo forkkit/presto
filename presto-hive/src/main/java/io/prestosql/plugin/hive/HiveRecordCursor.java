@@ -21,6 +21,7 @@ import io.prestosql.spi.PrestoException;
 import io.prestosql.spi.connector.RecordCursor;
 import io.prestosql.spi.type.DecimalType;
 import io.prestosql.spi.type.Type;
+import io.prestosql.spi.type.TypeManager;
 import org.joda.time.DateTimeZone;
 
 import java.util.List;
@@ -77,9 +78,11 @@ public class HiveRecordCursor
     public HiveRecordCursor(
             List<ColumnMapping> columnMappings,
             DateTimeZone hiveStorageTimeZone,
+            TypeManager typeManager,
             RecordCursor delegate)
     {
         requireNonNull(columnMappings, "columns is null");
+        requireNonNull(typeManager, "typeManager is null");
         requireNonNull(hiveStorageTimeZone, "hiveStorageTimeZone is null");
 
         this.delegate = requireNonNull(delegate, "delegate is null");
@@ -104,7 +107,7 @@ public class HiveRecordCursor
                 byte[] bytes = columnValue.getBytes(UTF_8);
 
                 String name = columnMapping.getHiveColumnHandle().getName();
-                Type type = columnMapping.getHiveColumnHandle().getType();
+                Type type = typeManager.getType(columnMapping.getHiveColumnHandle().getTypeSignature());
                 types[columnIndex] = type;
 
                 if (HiveUtil.isHiveNull(bytes)) {

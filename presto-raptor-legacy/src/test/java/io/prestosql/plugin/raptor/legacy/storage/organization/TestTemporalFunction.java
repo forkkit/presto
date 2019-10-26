@@ -34,7 +34,7 @@ public class TestTemporalFunction
     private static final DateTime PST_TIME = new DateTime(1970, 1, 2, 0, 0, 0, PST);
 
     @Test
-    public void testDateBlock()
+    void testDateBlock()
     {
         BlockBuilder blockBuilder = DATE.createBlockBuilder(null, 2);
         DATE.writeLong(blockBuilder, 13);
@@ -48,7 +48,7 @@ public class TestTemporalFunction
     }
 
     @Test
-    public void testTimestampBlock()
+    void testTimestampBlock()
     {
         BlockBuilder blockBuilder = TIMESTAMP.createBlockBuilder(null, 4);
 
@@ -76,7 +76,7 @@ public class TestTemporalFunction
     }
 
     @Test
-    public void testDateShardRange()
+    void testDateShardRange()
     {
         TemporalFunction temporalFunction = new TemporalFunction(UTC);
         assertEquals(temporalFunction.getDayFromRange(dateRange(2, 2)), 2);
@@ -92,7 +92,7 @@ public class TestTemporalFunction
     }
 
     @Test
-    public void testTimestampShardRange()
+    void testTimestampShardRange()
     {
         // The time frame should be look like following:
         //  UTC1 ... 8h ... PST1 ... 16h ... UTC2 ... 8h ... PST2 .....

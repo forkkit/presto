@@ -67,10 +67,8 @@ public final class AccumuloQueryRunner
     public static synchronized DistributedQueryRunner createAccumuloQueryRunner(Map<String, String> extraProperties)
             throws Exception
     {
-        DistributedQueryRunner queryRunner = DistributedQueryRunner.builder(createSession())
-                        .setNodeCount(4)
-                        .setExtraProperties(extraProperties)
-                        .build();
+        DistributedQueryRunner queryRunner =
+                new DistributedQueryRunner(createSession(), 4, extraProperties);
 
         queryRunner.installPlugin(new TpchPlugin());
         queryRunner.createCatalog("tpch", "tpch");

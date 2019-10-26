@@ -22,7 +22,8 @@ import com.google.common.primitives.Ints;
 import io.prestosql.block.BlockAssertions;
 import io.prestosql.geospatial.KdbTreeUtils;
 import io.prestosql.geospatial.Rectangle;
-import io.prestosql.metadata.Metadata;
+import io.prestosql.metadata.FunctionKind;
+import io.prestosql.metadata.Signature;
 import io.prestosql.operator.aggregation.Accumulator;
 import io.prestosql.operator.aggregation.AccumulatorFactory;
 import io.prestosql.operator.aggregation.GroupedAccumulator;
@@ -31,7 +32,6 @@ import io.prestosql.operator.scalar.AbstractTestFunctions;
 import io.prestosql.spi.Page;
 import io.prestosql.spi.block.Block;
 import io.prestosql.spi.block.BlockBuilder;
-import io.prestosql.sql.tree.QualifiedName;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -47,7 +47,7 @@ import static io.prestosql.operator.aggregation.AggregationTestUtils.getFinalBlo
 import static io.prestosql.operator.aggregation.AggregationTestUtils.getGroupValue;
 import static io.prestosql.plugin.geospatial.GeometryType.GEOMETRY;
 import static io.prestosql.spi.type.IntegerType.INTEGER;
-import static io.prestosql.sql.analyzer.TypeSignatureProvider.fromTypes;
+import static io.prestosql.spi.type.VarcharType.VARCHAR;
 import static java.math.RoundingMode.CEILING;
 import static org.testng.Assert.assertEquals;
 
@@ -96,10 +96,12 @@ public class TestSpatialPartitioningInternalAggregation
 
     private InternalAggregationFunction getFunction()
     {
-        Metadata metadata = functionAssertions.getMetadata();
-        return metadata.getAggregateFunctionImplementation(metadata.resolveFunction(
-                QualifiedName.of("spatial_partitioning"),
-                fromTypes(GEOMETRY, INTEGER)));
+        return functionAssertions.getMetadata().getAggregateFunctionImplementation(new Signature(
+                "spatial_partitioning",
+                FunctionKind.AGGREGATE,
+                VARCHAR.getTypeSignature(),
+                GEOMETRY.getTypeSignature(),
+                INTEGER.getTypeSignature()));
     }
 
     private List<OGCGeometry> makeGeometries()

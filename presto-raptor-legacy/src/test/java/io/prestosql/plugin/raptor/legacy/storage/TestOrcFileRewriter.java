@@ -58,7 +58,6 @@ import static java.nio.file.Files.readAllBytes;
 import static java.util.UUID.randomUUID;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
 @Test(singleThreaded = true)
@@ -88,8 +87,8 @@ public class TestOrcFileRewriter
         ArrayType arrayType = new ArrayType(BIGINT);
         ArrayType arrayOfArrayType = new ArrayType(arrayType);
         Type mapType = createTestMetadataManager().getParameterizedType(StandardTypes.MAP, ImmutableList.of(
-                TypeSignatureParameter.typeParameter(createVarcharType(5).getTypeSignature()),
-                TypeSignatureParameter.typeParameter(BOOLEAN.getTypeSignature())));
+                TypeSignatureParameter.of(createVarcharType(5).getTypeSignature()),
+                TypeSignatureParameter.of(BOOLEAN.getTypeSignature())));
         List<Long> columnIds = ImmutableList.of(3L, 7L, 9L, 10L, 11L, 12L);
         DecimalType decimalType = DecimalType.createDecimalType(4, 4);
 
@@ -114,10 +113,9 @@ public class TestOrcFileRewriter
             assertEquals(reader.getFileRowCount(), 5);
             assertEquals(reader.getSplitLength(), file.length());
 
-            Page page = reader.nextPage();
-            assertEquals(page.getPositionCount(), 5);
+            assertEquals(reader.nextBatch(), 5);
 
-            Block column0 = page.getBlock(0);
+            Block column0 = reader.readBlock(0);
             assertEquals(column0.getPositionCount(), 5);
             for (int i = 0; i < 5; i++) {
                 assertEquals(column0.isNull(i), false);
@@ -128,7 +126,7 @@ public class TestOrcFileRewriter
             assertEquals(BIGINT.getLong(column0, 3), 888L);
             assertEquals(BIGINT.getLong(column0, 4), 999L);
 
-            Block column1 = page.getBlock(1);
+            Block column1 = reader.readBlock(1);
             assertEquals(column1.getPositionCount(), 5);
             for (int i = 0; i < 5; i++) {
                 assertEquals(column1.isNull(i), false);
@@ -139,7 +137,7 @@ public class TestOrcFileRewriter
             assertEquals(createVarcharType(20).getSlice(column1, 3), utf8Slice("world"));
             assertEquals(createVarcharType(20).getSlice(column1, 4), utf8Slice("done"));
 
-            Block column2 = page.getBlock(2);
+            Block column2 = reader.readBlock(2);
             assertEquals(column2.getPositionCount(), 5);
             for (int i = 0; i < 5; i++) {
                 assertEquals(column2.isNull(i), false);
@@ -150,7 +148,7 @@ public class TestOrcFileRewriter
             assertTrue(arrayBlocksEqual(BIGINT, arrayType.getObject(column2, 3), arrayBlockOf(BIGINT, 7, 8)));
             assertTrue(arrayBlocksEqual(BIGINT, arrayType.getObject(column2, 4), arrayBlockOf(BIGINT, 9, 10)));
 
-            Block column3 = page.getBlock(3);
+            Block column3 = reader.readBlock(3);
             assertEquals(column3.getPositionCount(), 5);
             for (int i = 0; i < 5; i++) {
                 assertEquals(column3.isNull(i), false);
@@ -161,7 +159,7 @@ public class TestOrcFileRewriter
             assertTrue(mapBlocksEqual(createVarcharType(5), BOOLEAN, arrayType.getObject(column3, 3), mapBlockOf(createVarcharType(5), BOOLEAN, "k4", true)));
             assertTrue(mapBlocksEqual(createVarcharType(5), BOOLEAN, arrayType.getObject(column3, 4), mapBlockOf(createVarcharType(5), BOOLEAN, "k5", true)));
 
-            Block column4 = page.getBlock(4);
+            Block column4 = reader.readBlock(4);
             assertEquals(column4.getPositionCount(), 5);
             for (int i = 0; i < 5; i++) {
                 assertEquals(column4.isNull(i), false);
@@ -172,7 +170,7 @@ public class TestOrcFileRewriter
             assertTrue(arrayBlocksEqual(arrayType, arrayOfArrayType.getObject(column4, 3), arrayBlockOf(arrayType, null, arrayBlockOf(BIGINT, 8), null)));
             assertTrue(arrayBlocksEqual(arrayType, arrayOfArrayType.getObject(column4, 4), arrayBlockOf(arrayType, arrayBlockOf(BIGINT, 9, 10))));
 
-            assertNull(reader.nextPage());
+            assertEquals(reader.nextBatch(), -1);
 
             OrcFileMetadata orcFileMetadata = METADATA_CODEC.fromJson(reader.getUserMetadata().get(OrcFileMetadata.KEY).getBytes());
             assertEquals(orcFileMetadata, new OrcFileMetadata(ImmutableMap.<Long, TypeId>builder()
@@ -202,10 +200,9 @@ public class TestOrcFileRewriter
             assertEquals(reader.getFileRowCount(), 2);
             assertEquals(reader.getSplitLength(), newFile.length());
 
-            Page page = reader.nextPage();
-            assertEquals(page.getPositionCount(), 2);
+            assertEquals(reader.nextBatch(), 2);
 
-            Block column0 = page.getBlock(0);
+            Block column0 = reader.readBlock(0);
             assertEquals(column0.getPositionCount(), 2);
             for (int i = 0; i < 2; i++) {
                 assertEquals(column0.isNull(i), false);
@@ -213,7 +210,7 @@ public class TestOrcFileRewriter
             assertEquals(BIGINT.getLong(column0, 0), 123L);
             assertEquals(BIGINT.getLong(column0, 1), 456L);
 
-            Block column1 = page.getBlock(1);
+            Block column1 = reader.readBlock(1);
             assertEquals(column1.getPositionCount(), 2);
             for (int i = 0; i < 2; i++) {
                 assertEquals(column1.isNull(i), false);
@@ -221,7 +218,7 @@ public class TestOrcFileRewriter
             assertEquals(createVarcharType(20).getSlice(column1, 0), utf8Slice("hello"));
             assertEquals(createVarcharType(20).getSlice(column1, 1), utf8Slice("bye"));
 
-            Block column2 = page.getBlock(2);
+            Block column2 = reader.readBlock(2);
             assertEquals(column2.getPositionCount(), 2);
             for (int i = 0; i < 2; i++) {
                 assertEquals(column2.isNull(i), false);
@@ -229,7 +226,7 @@ public class TestOrcFileRewriter
             assertTrue(arrayBlocksEqual(BIGINT, arrayType.getObject(column2, 0), arrayBlockOf(BIGINT, 1, 2)));
             assertTrue(arrayBlocksEqual(BIGINT, arrayType.getObject(column2, 1), arrayBlockOf(BIGINT, 5, 6)));
 
-            Block column3 = page.getBlock(3);
+            Block column3 = reader.readBlock(3);
             assertEquals(column3.getPositionCount(), 2);
             for (int i = 0; i < 2; i++) {
                 assertEquals(column3.isNull(i), false);
@@ -237,7 +234,7 @@ public class TestOrcFileRewriter
             assertTrue(mapBlocksEqual(createVarcharType(5), BOOLEAN, arrayType.getObject(column3, 0), mapBlockOf(createVarcharType(5), BOOLEAN, "k1", true)));
             assertTrue(mapBlocksEqual(createVarcharType(5), BOOLEAN, arrayType.getObject(column3, 1), mapBlockOf(createVarcharType(5), BOOLEAN, "k3", true)));
 
-            Block column4 = page.getBlock(4);
+            Block column4 = reader.readBlock(4);
             assertEquals(column4.getPositionCount(), 2);
             for (int i = 0; i < 2; i++) {
                 assertEquals(column4.isNull(i), false);
@@ -245,7 +242,7 @@ public class TestOrcFileRewriter
             assertTrue(arrayBlocksEqual(arrayType, arrayOfArrayType.getObject(column4, 0), arrayBlockOf(arrayType, arrayBlockOf(BIGINT, 5))));
             assertTrue(arrayBlocksEqual(arrayType, arrayOfArrayType.getObject(column4, 1), arrayBlockOf(arrayType, arrayBlockOf(BIGINT, 7))));
 
-            assertEquals(reader.nextPage(), null);
+            assertEquals(reader.nextBatch(), -1);
 
             OrcFileMetadata orcFileMetadata = METADATA_CODEC.fromJson(reader.getUserMetadata().get(OrcFileMetadata.KEY).getBytes());
             assertEquals(orcFileMetadata, new OrcFileMetadata(ImmutableMap.<Long, TypeId>builder()
@@ -282,10 +279,9 @@ public class TestOrcFileRewriter
             assertEquals(reader.getFileRowCount(), 2);
             assertEquals(reader.getSplitLength(), file.length());
 
-            Page page = reader.nextPage();
-            assertEquals(page.getPositionCount(), 2);
+            assertEquals(reader.nextBatch(), 2);
 
-            Block column0 = page.getBlock(0);
+            Block column0 = reader.readBlock(0);
             assertEquals(column0.getPositionCount(), 2);
             for (int i = 0; i < 2; i++) {
                 assertEquals(column0.isNull(i), false);
@@ -293,7 +289,7 @@ public class TestOrcFileRewriter
             assertEquals(BIGINT.getLong(column0, 0), 123L);
             assertEquals(BIGINT.getLong(column0, 1), 777L);
 
-            Block column1 = page.getBlock(1);
+            Block column1 = reader.readBlock(1);
             assertEquals(column1.getPositionCount(), 2);
             for (int i = 0; i < 2; i++) {
                 assertEquals(column1.isNull(i), false);
@@ -319,15 +315,14 @@ public class TestOrcFileRewriter
             assertEquals(reader.getFileRowCount(), 1);
             assertEquals(reader.getSplitLength(), newFile.length());
 
-            Page page = reader.nextPage();
-            assertEquals(page.getPositionCount(), 1);
+            assertEquals(reader.nextBatch(), 1);
 
-            Block column0 = page.getBlock(0);
+            Block column0 = reader.readBlock(0);
             assertEquals(column0.getPositionCount(), 1);
             assertEquals(column0.isNull(0), false);
             assertEquals(BIGINT.getLong(column0, 0), 123L);
 
-            Block column1 = page.getBlock(1);
+            Block column1 = reader.readBlock(1);
             assertEquals(column1.getPositionCount(), 1);
             assertEquals(column1.isNull(0), false);
             assertEquals(createVarcharType(20).getSlice(column1, 0), utf8Slice("hello"));

@@ -477,7 +477,7 @@ public class TestVarbinaryFunctions
 
     private static SqlVarbinary varbinary(String string)
     {
-        return new SqlVarbinary(string.getBytes(UTF_8));
+        return new SqlVarbinary(string.getBytes());
     }
 
     private static SqlVarbinary varbinary(int... bytesAsInts)

@@ -47,7 +47,6 @@ import static io.prestosql.orc.TestingOrcPredicate.ORC_STRIPE_SIZE;
 import static io.prestosql.orc.metadata.CompressionKind.NONE;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
 import static java.lang.Math.toIntExact;
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.testng.Assert.assertFalse;
 
 public class TestOrcWriter
@@ -82,7 +81,7 @@ public class TestOrcWriter
             int entries = 65536;
             BlockBuilder blockBuilder = VARCHAR.createBlockBuilder(null, entries);
             for (int i = 0; i < data.length; i++) {
-                byte[] bytes = data[i].getBytes(UTF_8);
+                byte[] bytes = data[i].getBytes();
                 for (int j = 0; j < entries; j++) {
                     // force to write different data
                     bytes[0] = (byte) ((bytes[0] + 1) % 128);

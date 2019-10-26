@@ -70,7 +70,7 @@ public class Page
         if (sizeInBytes < 0) {
             sizeInBytes = 0;
             for (Block block : blocks) {
-                sizeInBytes += block.getLoadedBlock().getSizeInBytes();
+                sizeInBytes += block.getSizeInBytes();
             }
             this.sizeInBytes.set(sizeInBytes);
         }

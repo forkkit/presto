@@ -19,9 +19,7 @@ import io.airlift.json.JsonCodec;
 import io.airlift.json.JsonCodecFactory;
 import io.airlift.json.ObjectMapperProvider;
 import io.prestosql.spi.type.Type;
-import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.type.TypeDeserializer;
-import io.prestosql.type.TypeSignatureDeserializer;
 import org.testng.annotations.Test;
 
 import static io.prestosql.metadata.FunctionKind.SCALAR;
@@ -38,9 +36,7 @@ public class TestSignature
     public void testSerializationRoundTrip()
     {
         ObjectMapperProvider objectMapperProvider = new ObjectMapperProvider();
-        objectMapperProvider.setJsonDeserializers(ImmutableMap.of(
-                Type.class, new TypeDeserializer(createTestMetadataManager()),
-                TypeSignature.class, new TypeSignatureDeserializer()));
+        objectMapperProvider.setJsonDeserializers(ImmutableMap.of(Type.class, new TypeDeserializer(createTestMetadataManager())));
         JsonCodec<Signature> codec = new JsonCodecFactory(objectMapperProvider, true).jsonCodec(Signature.class);
 
         Signature expected = new Signature(

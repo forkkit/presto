@@ -14,7 +14,7 @@
 package io.prestosql.plugin.geospatial;
 
 import io.prestosql.Session;
-import io.prestosql.plugin.hive.TestingHivePlugin;
+import io.prestosql.plugin.hive.HivePlugin;
 import io.prestosql.plugin.hive.authentication.HiveIdentity;
 import io.prestosql.plugin.hive.metastore.Database;
 import io.prestosql.plugin.hive.metastore.HiveMetastore;
@@ -24,6 +24,7 @@ import io.prestosql.tests.DistributedQueryRunner;
 import org.testng.annotations.Test;
 
 import java.io.File;
+import java.util.Optional;
 
 import static io.prestosql.SystemSessionProperties.SPATIAL_PARTITIONING_TABLE_NAME;
 import static io.prestosql.plugin.hive.metastore.file.FileHiveMetastore.createTestingFileHiveMetastore;
@@ -81,7 +82,7 @@ public class TestSpatialJoins
                         .setOwnerName("public")
                         .setOwnerType(PrincipalType.ROLE)
                         .build());
-        queryRunner.installPlugin(new TestingHivePlugin(metastore));
+        queryRunner.installPlugin(new HivePlugin("hive", Optional.of(metastore)));
 
         queryRunner.createCatalog("hive", "hive");
         return queryRunner;

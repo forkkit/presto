@@ -17,6 +17,7 @@ package io.prestosql.sql.planner.iterative.rule;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.prestosql.spi.StandardErrorCode;
+import io.prestosql.spi.type.StandardTypes;
 import io.prestosql.sql.planner.FunctionCallBuilder;
 import io.prestosql.sql.planner.Symbol;
 import io.prestosql.sql.planner.iterative.Rule;
@@ -36,10 +37,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static io.prestosql.metadata.MetadataManager.createTestMetadataManager;
-import static io.prestosql.spi.type.BooleanType.BOOLEAN;
 import static io.prestosql.spi.type.IntegerType.INTEGER;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
-import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toSqlType;
 import static io.prestosql.sql.planner.assertions.PlanMatchPattern.assignUniqueId;
 import static io.prestosql.sql.planner.assertions.PlanMatchPattern.correlatedJoin;
 import static io.prestosql.sql.planner.assertions.PlanMatchPattern.expression;
@@ -213,6 +212,6 @@ public class TestTransformCorrelatedScalarSubquery
                                 .addArgument(INTEGER, new LongLiteral(Long.toString(StandardErrorCode.SUBQUERY_MULTIPLE_ROWS.ordinal())))
                                 .addArgument(VARCHAR, new StringLiteral("Scalar sub-query has returned multiple rows"))
                                 .build(),
-                        toSqlType(BOOLEAN))));
+                        StandardTypes.BOOLEAN)));
     }
 }

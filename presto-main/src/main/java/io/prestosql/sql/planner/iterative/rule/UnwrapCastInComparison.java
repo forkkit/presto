@@ -17,9 +17,10 @@ import io.prestosql.Session;
 import io.prestosql.SystemSessionProperties;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.metadata.OperatorNotFoundException;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.Signature;
 import io.prestosql.spi.PrestoException;
 import io.prestosql.spi.predicate.Utils;
+import io.prestosql.spi.type.BooleanType;
 import io.prestosql.spi.type.DecimalType;
 import io.prestosql.spi.type.Type;
 import io.prestosql.sql.InterpretedFunctionInvoker;
@@ -40,13 +41,11 @@ import io.prestosql.type.TypeCoercion;
 import java.util.Optional;
 
 import static io.prestosql.spi.type.BigintType.BIGINT;
-import static io.prestosql.spi.type.BooleanType.BOOLEAN;
 import static io.prestosql.spi.type.DoubleType.DOUBLE;
 import static io.prestosql.spi.type.IntegerType.INTEGER;
 import static io.prestosql.spi.type.RealType.REAL;
 import static io.prestosql.sql.ExpressionUtils.and;
 import static io.prestosql.sql.ExpressionUtils.or;
-import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toSqlType;
 import static io.prestosql.sql.tree.BooleanLiteral.TRUE_LITERAL;
 import static io.prestosql.sql.tree.ComparisonExpression.Operator.EQUAL;
 import static io.prestosql.sql.tree.ComparisonExpression.Operator.GREATER_THAN;
@@ -160,7 +159,7 @@ public class UnwrapCastInComparison
                     case LESS_THAN_OR_EQUAL:
                     case GREATER_THAN:
                     case GREATER_THAN_OR_EQUAL:
-                        return new Cast(new NullLiteral(), toSqlType(BOOLEAN));
+                        return new Cast(new NullLiteral(), BooleanType.BOOLEAN.toString());
                     case IS_DISTINCT_FROM:
                         return new IsNotNullPredicate(cast);
                     default:
@@ -179,7 +178,7 @@ public class UnwrapCastInComparison
                 return expression;
             }
 
-            ResolvedFunction sourceToTarget = metadata.getCoercion(sourceType, targetType);
+            Signature sourceToTarget = metadata.getCoercion(sourceType, targetType);
 
             Optional<Type.Range> sourceRange = sourceType.getRange();
             if (sourceRange.isPresent()) {
@@ -268,7 +267,7 @@ public class UnwrapCastInComparison
                 }
             }
 
-            ResolvedFunction targetToSource;
+            Signature targetToSource;
             try {
                 targetToSource = metadata.getCoercion(targetType, sourceType);
             }
@@ -376,7 +375,7 @@ public class UnwrapCastInComparison
             return new TypeCoercion(metadata::getType).canCoerce(source, target);
         }
 
-        private Object coerce(Object value, ResolvedFunction coercion)
+        private Object coerce(Object value, Signature coercion)
         {
             return functionInvoker.invoke(coercion, session.toConnectorSession(), value);
         }

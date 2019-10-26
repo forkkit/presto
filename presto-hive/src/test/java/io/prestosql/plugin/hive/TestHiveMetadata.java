@@ -30,7 +30,7 @@ public class TestHiveMetadata
     private static final HiveColumnHandle TEST_COLUMN_HANDLE = new HiveColumnHandle(
             "test",
             HiveType.HIVE_STRING,
-            VARCHAR,
+            VARCHAR.getTypeSignature(),
             0,
             HiveColumnHandle.ColumnType.PARTITION_KEY,
             Optional.empty());

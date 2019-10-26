@@ -18,9 +18,7 @@ import com.google.common.collect.ImmutableList;
 import io.prestosql.metadata.BoundVariables;
 import io.prestosql.metadata.FunctionKind;
 import io.prestosql.metadata.FunctionListBuilder;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.ResolvedFunction;
 import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlScalarFunction;
 import io.prestosql.operator.DriverYieldSignal;
@@ -30,15 +28,12 @@ import io.prestosql.spi.block.Block;
 import io.prestosql.spi.block.BlockBuilder;
 import io.prestosql.spi.type.ArrayType;
 import io.prestosql.spi.type.Type;
-import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.sql.gen.ExpressionCompiler;
 import io.prestosql.sql.gen.PageFunctionCompiler;
 import io.prestosql.sql.relational.CallExpression;
 import io.prestosql.sql.relational.LambdaDefinitionExpression;
 import io.prestosql.sql.relational.RowExpression;
 import io.prestosql.sql.relational.VariableReferenceExpression;
-import io.prestosql.sql.tree.QualifiedName;
-import io.prestosql.type.FunctionType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -72,10 +67,8 @@ import static io.prestosql.operator.scalar.ScalarFunctionImplementation.NullConv
 import static io.prestosql.spi.function.OperatorType.GREATER_THAN;
 import static io.prestosql.spi.type.BigintType.BIGINT;
 import static io.prestosql.spi.type.BooleanType.BOOLEAN;
-import static io.prestosql.spi.type.TypeSignature.arrayType;
-import static io.prestosql.spi.type.TypeSignature.functionType;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.spi.type.TypeUtils.readNativeValue;
-import static io.prestosql.sql.analyzer.TypeSignatureProvider.fromTypes;
 import static io.prestosql.sql.relational.Expressions.constant;
 import static io.prestosql.sql.relational.Expressions.field;
 import static io.prestosql.testing.TestingConnectorSession.SESSION;
@@ -133,11 +126,9 @@ public class BenchmarkArrayFilter
             for (int i = 0; i < TYPES.size(); i++) {
                 Type elementType = TYPES.get(i);
                 ArrayType arrayType = new ArrayType(elementType);
-                ResolvedFunction resolvedFunction = metadata.resolveFunction(
-                        QualifiedName.of(name),
-                        fromTypes(arrayType, new FunctionType(ImmutableList.of(BIGINT), BOOLEAN)));
-                ResolvedFunction greaterThan = metadata.resolveOperator(GREATER_THAN, ImmutableList.of(BIGINT, BIGINT));
-                projectionsBuilder.add(new CallExpression(resolvedFunction, arrayType, ImmutableList.of(
+                Signature signature = new Signature(name, FunctionKind.SCALAR, arrayType.getTypeSignature(), arrayType.getTypeSignature(), parseTypeSignature("function(bigint,boolean)"));
+                Signature greaterThan = new Signature("$operator$" + GREATER_THAN.name(), FunctionKind.SCALAR, BOOLEAN.getTypeSignature(), BIGINT.getTypeSignature(), BIGINT.getTypeSignature());
+                projectionsBuilder.add(new CallExpression(signature, arrayType, ImmutableList.of(
                         field(0, arrayType),
                         new LambdaDefinitionExpression(
                                 ImmutableList.of(BIGINT),
@@ -204,20 +195,32 @@ public class BenchmarkArrayFilter
 
         private ExactArrayFilterFunction()
         {
-            super(new FunctionMetadata(
-                    new Signature(
-                            "exact_filter",
-                            FunctionKind.SCALAR,
-                            ImmutableList.of(typeVariable("T")),
-                            ImmutableList.of(),
-                            arrayType(new TypeSignature("T")),
-                            ImmutableList.of(
-                                    arrayType(new TypeSignature("T")),
-                                    functionType(new TypeSignature("T"), BOOLEAN.getTypeSignature())),
-                            false),
-                    false,
-                    false,
-                    "return array containing elements that match the given predicate"));
+            super(new Signature(
+                    "exact_filter",
+                    FunctionKind.SCALAR,
+                    ImmutableList.of(typeVariable("T")),
+                    ImmutableList.of(),
+                    parseTypeSignature("array(T)"),
+                    ImmutableList.of(parseTypeSignature("array(T)"), parseTypeSignature("function(T,boolean)")),
+                    false));
+        }
+
+        @Override
+        public boolean isHidden()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean isDeterministic()
+        {
+            return false;
+        }
+
+        @Override
+        public String getDescription()
+        {
+            return "return array containing elements that match the given predicate";
         }
 
         @Override
@@ -229,7 +232,8 @@ public class BenchmarkArrayFilter
                     ImmutableList.of(
                             valueTypeArgumentProperty(RETURN_NULL_ON_NULL),
                             valueTypeArgumentProperty(RETURN_NULL_ON_NULL)),
-                    METHOD_HANDLE.bindTo(type));
+                    METHOD_HANDLE.bindTo(type),
+                    isDeterministic());
         }
 
         public static Block filter(Type type, Block block, MethodHandle function)

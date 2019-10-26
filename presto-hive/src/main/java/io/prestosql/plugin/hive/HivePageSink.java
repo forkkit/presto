@@ -22,7 +22,6 @@ import io.airlift.concurrent.MoreFutures;
 import io.airlift.json.JsonCodec;
 import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
-import io.prestosql.plugin.hive.util.HiveBucketing.BucketingVersion;
 import io.prestosql.spi.Page;
 import io.prestosql.spi.PageIndexer;
 import io.prestosql.spi.PageIndexerFactory;
@@ -32,6 +31,7 @@ import io.prestosql.spi.block.IntArrayBlockBuilder;
 import io.prestosql.spi.connector.ConnectorPageSink;
 import io.prestosql.spi.connector.ConnectorSession;
 import io.prestosql.spi.type.Type;
+import io.prestosql.spi.type.TypeManager;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 
@@ -92,6 +92,7 @@ public class HivePageSink
             List<HiveColumnHandle> inputColumns,
             Optional<HiveBucketProperty> bucketProperty,
             PageIndexerFactory pageIndexerFactory,
+            TypeManager typeManager,
             HdfsEnvironment hdfsEnvironment,
             int maxOpenWriters,
             ListeningExecutorService writeVerificationExecutor,
@@ -113,7 +114,8 @@ public class HivePageSink
         this.pagePartitioner = new HiveWriterPagePartitioner(
                 inputColumns,
                 bucketProperty.isPresent(),
-                pageIndexerFactory);
+                pageIndexerFactory,
+                typeManager);
 
         // determine the input index of the partition columns and data columns
         // and determine the input index and type of bucketing columns
@@ -137,7 +139,6 @@ public class HivePageSink
         this.dataColumnInputIndex = Ints.toArray(dataColumnsInputIndex.build());
 
         if (bucketProperty.isPresent()) {
-            BucketingVersion bucketingVersion = bucketProperty.get().getBucketingVersion();
             int bucketCount = bucketProperty.get().getBucketCount();
             bucketColumns = bucketProperty.get().getBucketedBy().stream()
                     .mapToInt(dataColumnNameToIdMap::get)
@@ -145,7 +146,7 @@ public class HivePageSink
             List<HiveType> bucketColumnTypes = bucketProperty.get().getBucketedBy().stream()
                     .map(dataColumnNameToTypeMap::get)
                     .collect(toList());
-            bucketFunction = new HiveBucketFunction(bucketingVersion, bucketCount, bucketColumnTypes);
+            bucketFunction = new HiveBucketFunction(bucketCount, bucketColumnTypes);
         }
         else {
             bucketColumns = null;
@@ -398,14 +399,15 @@ public class HivePageSink
         public HiveWriterPagePartitioner(
                 List<HiveColumnHandle> inputColumns,
                 boolean bucketed,
-                PageIndexerFactory pageIndexerFactory)
+                PageIndexerFactory pageIndexerFactory,
+                TypeManager typeManager)
         {
             requireNonNull(inputColumns, "inputColumns is null");
             requireNonNull(pageIndexerFactory, "pageIndexerFactory is null");
 
             List<Type> partitionColumnTypes = inputColumns.stream()
                     .filter(HiveColumnHandle::isPartitionKey)
-                    .map(HiveColumnHandle::getType)
+                    .map(column -> typeManager.getType(column.getTypeSignature()))
                     .collect(toList());
 
             if (bucketed) {

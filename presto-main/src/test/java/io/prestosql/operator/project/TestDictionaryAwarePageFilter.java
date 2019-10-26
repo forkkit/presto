@@ -206,7 +206,7 @@ public class TestDictionaryAwarePageFilter
 
     private static LazyBlock lazyWrapper(Block block)
     {
-        return new LazyBlock(block.getPositionCount(), () -> block);
+        return new LazyBlock(block.getPositionCount(), lazyBlock -> lazyBlock.setBlock(block));
     }
 
     private static boolean isSelected(boolean filterRange, long value)

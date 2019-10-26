@@ -16,9 +16,7 @@ package io.prestosql.operator.aggregation;
 import com.google.common.collect.ImmutableList;
 import io.airlift.bytecode.DynamicClassLoader;
 import io.prestosql.metadata.BoundVariables;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlAggregationFunction;
 import io.prestosql.operator.aggregation.AggregationMetadata.AccumulatorStateDescriptor;
 import io.prestosql.operator.aggregation.state.BlockPositionState;
@@ -39,7 +37,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
-import static io.prestosql.metadata.FunctionKind.AGGREGATE;
 import static io.prestosql.metadata.Signature.typeVariable;
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata;
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata.ParameterType.BLOCK_INDEX;
@@ -71,18 +68,17 @@ public class ArbitraryAggregationFunction
 
     protected ArbitraryAggregationFunction()
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        NAME,
-                        AGGREGATE,
-                        ImmutableList.of(typeVariable("T")),
-                        ImmutableList.of(),
-                        new TypeSignature("T"),
-                        ImmutableList.of(new TypeSignature("T")),
-                        false),
-                false,
-                true,
-                "return an arbitrary non-null input value"));
+        super(NAME,
+                ImmutableList.of(typeVariable("T")),
+                ImmutableList.of(),
+                new TypeSignature("T"),
+                ImmutableList.of(new TypeSignature("T")));
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "return an arbitrary non-null input value";
     }
 
     @Override

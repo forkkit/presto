@@ -134,11 +134,12 @@ public class ParquetPageSourceFactory
                 isUseParquetColumnNames(session),
                 isFailOnCorruptedParquetStatistics(session),
                 getParquetMaxReadBlockSize(session),
+                typeManager,
                 effectivePredicate,
                 stats));
     }
 
-    private static ParquetPageSource createParquetPageSource(
+    public static ParquetPageSource createParquetPageSource(
             HdfsEnvironment hdfsEnvironment,
             String user,
             Configuration configuration,
@@ -150,6 +151,7 @@ public class ParquetPageSourceFactory
             boolean useParquetColumnNames,
             boolean failOnCorruptedParquetStatistics,
             DataSize maxReadBlockSize,
+            TypeManager typeManager,
             TupleDomain<HiveColumnHandle> effectivePredicate,
             FileFormatDataSourceStats stats)
     {
@@ -211,11 +213,13 @@ public class ParquetPageSourceFactory
                 HiveColumnHandle column = columns.get(columnIndex);
                 Optional<org.apache.parquet.schema.Type> parquetField = parquetFields.get(columnIndex);
 
-                prestoTypes.add(column.getType());
+                Type prestoType = typeManager.getType(column.getTypeSignature());
+
+                prestoTypes.add(prestoType);
 
                 internalFields.add(parquetField.map(field -> {
                     String columnName = useParquetColumnNames ? column.getName() : fileSchema.getFields().get(column.getHiveColumnIndex()).getName();
-                    return constructField(column.getType(), lookupColumnByName(messageColumnIO, columnName)).orElse(null);
+                    return constructField(prestoType, lookupColumnByName(messageColumnIO, columnName)).orElse(null);
                 }));
             }
 

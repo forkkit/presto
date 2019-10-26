@@ -15,7 +15,6 @@ package io.prestosql.sql.planner.iterative.rule;
 
 import io.prestosql.matching.Captures;
 import io.prestosql.matching.Pattern;
-import io.prestosql.metadata.Metadata;
 import io.prestosql.sql.planner.iterative.Rule;
 import io.prestosql.sql.planner.plan.Assignments;
 import io.prestosql.sql.planner.plan.FilterNode;
@@ -24,7 +23,6 @@ import io.prestosql.sql.planner.plan.ProjectNode;
 
 import static io.prestosql.sql.ExpressionUtils.and;
 import static io.prestosql.sql.planner.plan.Patterns.intersect;
-import static java.util.Objects.requireNonNull;
 
 /**
  * Converts INTERSECT queries into UNION ALL..GROUP BY...WHERE
@@ -59,12 +57,6 @@ public class ImplementIntersectAsUnion
         implements Rule<IntersectNode>
 {
     private static final Pattern<IntersectNode> PATTERN = intersect();
-    private final Metadata metadata;
-
-    public ImplementIntersectAsUnion(Metadata metadata)
-    {
-        this.metadata = requireNonNull(metadata, "metadata is null");
-    }
 
     @Override
     public Pattern<IntersectNode> getPattern()
@@ -75,7 +67,7 @@ public class ImplementIntersectAsUnion
     @Override
     public Result apply(IntersectNode node, Captures captures, Context context)
     {
-        SetOperationNodeTranslator translator = new SetOperationNodeTranslator(metadata, context.getSymbolAllocator(), context.getIdAllocator());
+        SetOperationNodeTranslator translator = new SetOperationNodeTranslator(context.getSymbolAllocator(), context.getIdAllocator());
         SetOperationNodeTranslator.TranslationResult result = translator.makeSetContainmentPlan(node);
 
         return Result.ofPlanNode(

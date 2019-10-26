@@ -13,19 +13,20 @@
  */
 package io.prestosql.spi.resourcegroups;
 
-import java.time.Duration;
+import io.airlift.units.DataSize;
+import io.airlift.units.Duration;
 
 public interface ResourceGroup
 {
     ResourceGroupId getId();
 
-    long getSoftMemoryLimitBytes();
+    DataSize getSoftMemoryLimit();
 
     /**
      * Threshold on total distributed memory usage after which new queries
      * will queue instead of starting.
      */
-    void setSoftMemoryLimitBytes(long limit);
+    void setSoftMemoryLimit(DataSize limit);
 
     Duration getSoftCpuLimit();
 

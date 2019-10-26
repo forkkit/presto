@@ -70,16 +70,18 @@ public class PageSourceManager
                     table.getConnectorHandle(),
                     columns);
         }
-        if (constraint.isNone()) {
+        else if (constraint.isNone()) {
             return new FixedPageSource(ImmutableList.of());
         }
-        return provider.createPageSource(
-                table.getTransaction(),
-                session.toConnectorSession(catalogName),
-                split.getConnectorSplit(),
-                table.getConnectorHandle(),
-                columns,
-                constraint);
+        else {
+            return provider.createPageSource(
+                    table.getTransaction(),
+                    session.toConnectorSession(catalogName),
+                    split.getConnectorSplit(),
+                    table.getConnectorHandle(),
+                    columns,
+                    constraint);
+        }
     }
 
     private ConnectorPageSourceProvider getPageSourceProvider(CatalogName catalogName)

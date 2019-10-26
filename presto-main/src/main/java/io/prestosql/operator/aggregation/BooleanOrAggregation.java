@@ -28,7 +28,7 @@ import static io.prestosql.operator.aggregation.state.TriStateBooleanState.FALSE
 import static io.prestosql.operator.aggregation.state.TriStateBooleanState.NULL_VALUE;
 import static io.prestosql.operator.aggregation.state.TriStateBooleanState.TRUE_VALUE;
 
-@AggregationFunction("bool_or")
+@AggregationFunction(value = "bool_or")
 public final class BooleanOrAggregation
 {
     private BooleanOrAggregation() {}

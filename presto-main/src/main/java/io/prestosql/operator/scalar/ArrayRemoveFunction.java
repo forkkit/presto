@@ -23,6 +23,7 @@ import io.prestosql.spi.function.OperatorDependency;
 import io.prestosql.spi.function.ScalarFunction;
 import io.prestosql.spi.function.SqlType;
 import io.prestosql.spi.function.TypeParameter;
+import io.prestosql.spi.type.StandardTypes;
 import io.prestosql.spi.type.Type;
 
 import java.lang.invoke.MethodHandle;
@@ -49,7 +50,7 @@ public final class ArrayRemoveFunction
     @TypeParameter("E")
     @SqlType("array(E)")
     public Block remove(
-            @OperatorDependency(operator = EQUAL, argumentTypes = {"E", "E"}) MethodHandle equalsFunction,
+            @OperatorDependency(operator = EQUAL, returnType = StandardTypes.BOOLEAN, argumentTypes = {"E", "E"}) MethodHandle equalsFunction,
             @TypeParameter("E") Type type,
             @SqlType("array(E)") Block array,
             @SqlType("E") long value)
@@ -60,7 +61,7 @@ public final class ArrayRemoveFunction
     @TypeParameter("E")
     @SqlType("array(E)")
     public Block remove(
-            @OperatorDependency(operator = EQUAL, argumentTypes = {"E", "E"}) MethodHandle equalsFunction,
+            @OperatorDependency(operator = EQUAL, returnType = StandardTypes.BOOLEAN, argumentTypes = {"E", "E"}) MethodHandle equalsFunction,
             @TypeParameter("E") Type type,
             @SqlType("array(E)") Block array,
             @SqlType("E") double value)
@@ -71,7 +72,7 @@ public final class ArrayRemoveFunction
     @TypeParameter("E")
     @SqlType("array(E)")
     public Block remove(
-            @OperatorDependency(operator = EQUAL, argumentTypes = {"E", "E"}) MethodHandle equalsFunction,
+            @OperatorDependency(operator = EQUAL, returnType = StandardTypes.BOOLEAN, argumentTypes = {"E", "E"}) MethodHandle equalsFunction,
             @TypeParameter("E") Type type,
             @SqlType("array(E)") Block array,
             @SqlType("E") boolean value)
@@ -82,7 +83,7 @@ public final class ArrayRemoveFunction
     @TypeParameter("E")
     @SqlType("array(E)")
     public Block remove(
-            @OperatorDependency(operator = EQUAL, argumentTypes = {"E", "E"}) MethodHandle equalsFunction,
+            @OperatorDependency(operator = EQUAL, returnType = StandardTypes.BOOLEAN, argumentTypes = {"E", "E"}) MethodHandle equalsFunction,
             @TypeParameter("E") Type type,
             @SqlType("array(E)") Block array,
             @SqlType("E") Object value)

@@ -50,10 +50,7 @@ public class TestDistributedSpilledQueries
                 .put("experimental.memory-revoking-target", "0.0")
                 .build();
 
-        DistributedQueryRunner queryRunner = DistributedQueryRunner.builder(defaultSession)
-                .setNodeCount(2)
-                .setExtraProperties(extraProperties)
-                .build();
+        DistributedQueryRunner queryRunner = new DistributedQueryRunner(defaultSession, 2, extraProperties);
 
         try {
             queryRunner.installPlugin(new TpchPlugin());

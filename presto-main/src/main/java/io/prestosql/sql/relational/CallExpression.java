@@ -15,7 +15,7 @@ package io.prestosql.sql.relational;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.Signature;
 import io.prestosql.spi.type.Type;
 
 import java.util.List;
@@ -26,24 +26,24 @@ import static java.util.Objects.requireNonNull;
 public final class CallExpression
         extends RowExpression
 {
-    private final ResolvedFunction resolvedFunction;
+    private final Signature signature;
     private final Type returnType;
     private final List<RowExpression> arguments;
 
-    public CallExpression(ResolvedFunction resolvedFunction, Type returnType, List<RowExpression> arguments)
+    public CallExpression(Signature signature, Type returnType, List<RowExpression> arguments)
     {
-        requireNonNull(resolvedFunction, "resolvedFunction is null");
+        requireNonNull(signature, "signature is null");
         requireNonNull(arguments, "arguments is null");
         requireNonNull(returnType, "returnType is null");
 
-        this.resolvedFunction = resolvedFunction;
+        this.signature = signature;
         this.returnType = returnType;
         this.arguments = ImmutableList.copyOf(arguments);
     }
 
-    public ResolvedFunction getResolvedFunction()
+    public Signature getSignature()
     {
-        return resolvedFunction;
+        return signature;
     }
 
     @Override
@@ -60,7 +60,7 @@ public final class CallExpression
     @Override
     public String toString()
     {
-        return resolvedFunction.getSignature().getName() + "(" + Joiner.on(", ").join(arguments) + ")";
+        return signature.getName() + "(" + Joiner.on(", ").join(arguments) + ")";
     }
 
     @Override
@@ -73,7 +73,7 @@ public final class CallExpression
             return false;
         }
         CallExpression that = (CallExpression) o;
-        return Objects.equals(resolvedFunction, that.resolvedFunction) &&
+        return Objects.equals(signature, that.signature) &&
                 Objects.equals(returnType, that.returnType) &&
                 Objects.equals(arguments, that.arguments);
     }
@@ -81,7 +81,7 @@ public final class CallExpression
     @Override
     public int hashCode()
     {
-        return Objects.hash(resolvedFunction, returnType, arguments);
+        return Objects.hash(signature, returnType, arguments);
     }
 
     @Override

@@ -18,8 +18,14 @@ public class MinByAggregationFunction
 {
     public static final MinByAggregationFunction MIN_BY = new MinByAggregationFunction();
 
+    @Override
+    public String getDescription()
+    {
+        return "Returns the value of the first argument, associated with the minimum value of the second argument";
+    }
+
     public MinByAggregationFunction()
     {
-        super(true, "Returns the value of the first argument, associated with the minimum value of the second argument");
+        super(true);
     }
 }

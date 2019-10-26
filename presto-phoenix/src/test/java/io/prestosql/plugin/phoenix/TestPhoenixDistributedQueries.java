@@ -14,7 +14,6 @@
 package io.prestosql.plugin.phoenix;
 
 import io.prestosql.tests.AbstractTestDistributedQueries;
-import org.testng.SkipException;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.Test;
 
@@ -50,13 +49,6 @@ public class TestPhoenixDistributedQueries
     protected boolean supportsArrays()
     {
         return false;
-    }
-
-    @Override
-    public void testLargeIn()
-    {
-        // TODO https://github.com/prestosql/presto/issues/1641
-        throw new SkipException("test disabled");
     }
 
     @Override

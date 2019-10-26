@@ -15,10 +15,6 @@ package io.prestosql.spi.block;
 
 import io.airlift.slice.Slice;
 
-import java.util.List;
-
-import static java.util.Collections.singletonList;
-
 public abstract class AbstractSingleArrayBlock
         implements Block
 {
@@ -27,12 +23,6 @@ public abstract class AbstractSingleArrayBlock
     protected AbstractSingleArrayBlock(int start)
     {
         this.start = start;
-    }
-
-    @Override
-    public final List<Block> getChildren()
-    {
-        return singletonList(getBlock());
     }
 
     protected abstract Block getBlock();

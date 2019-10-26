@@ -20,7 +20,7 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import io.prestosql.metadata.NewTableLayout;
 import io.prestosql.metadata.QualifiedObjectName;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.TableHandle;
 import io.prestosql.security.AccessControl;
 import io.prestosql.security.SecurityContext;
@@ -28,7 +28,6 @@ import io.prestosql.spi.connector.ColumnHandle;
 import io.prestosql.spi.connector.ConnectorTableMetadata;
 import io.prestosql.spi.security.Identity;
 import io.prestosql.spi.type.Type;
-import io.prestosql.sql.tree.AllColumns;
 import io.prestosql.sql.tree.ExistsPredicate;
 import io.prestosql.sql.tree.Expression;
 import io.prestosql.sql.tree.FunctionCall;
@@ -103,12 +102,11 @@ public class Analysis
     private final Map<NodeRef<QuerySpecification>, Expression> having = new LinkedHashMap<>();
     private final Map<NodeRef<Node>, List<Expression>> orderByExpressions = new LinkedHashMap<>();
     private final Set<NodeRef<OrderBy>> redundantOrderBy = new HashSet<>();
-    private final Map<NodeRef<Node>, List<SelectExpression>> selectExpressions = new LinkedHashMap<>();
+    private final Map<NodeRef<Node>, List<Expression>> outputExpressions = new LinkedHashMap<>();
     private final Map<NodeRef<QuerySpecification>, List<FunctionCall>> windowFunctions = new LinkedHashMap<>();
     private final Map<NodeRef<OrderBy>, List<FunctionCall>> orderByWindowFunctions = new LinkedHashMap<>();
     private final Map<NodeRef<Offset>, Long> offset = new LinkedHashMap<>();
     private final Map<NodeRef<Node>, OptionalLong> limit = new LinkedHashMap<>();
-    private final Map<NodeRef<AllColumns>, List<Field>> selectAllResultFields = new LinkedHashMap<>();
 
     private final Map<NodeRef<Join>, Expression> joins = new LinkedHashMap<>();
     private final Map<NodeRef<Join>, JoinUsingAnalysis> joinUsing = new LinkedHashMap<>();
@@ -124,7 +122,7 @@ public class Analysis
     private final Map<NodeRef<Expression>, Type> coercions = new LinkedHashMap<>();
     private final Set<NodeRef<Expression>> typeOnlyCoercions = new LinkedHashSet<>();
     private final Map<NodeRef<Relation>, List<Type>> relationCoercions = new LinkedHashMap<>();
-    private final Map<NodeRef<FunctionCall>, ResolvedFunction> resolvedFunctions = new LinkedHashMap<>();
+    private final Map<NodeRef<FunctionCall>, Signature> functionSignature = new LinkedHashMap<>();
     private final Map<NodeRef<Identifier>, LambdaArgumentDeclaration> lambdaArgumentReferences = new LinkedHashMap<>();
 
     private final Map<Field, ColumnHandle> columns = new LinkedHashMap<>();
@@ -326,24 +324,14 @@ public class Analysis
         return limit.get(NodeRef.of(node));
     }
 
-    public void setSelectAllResultFields(AllColumns node, List<Field> expressions)
+    public void setOutputExpressions(Node node, List<Expression> expressions)
     {
-        selectAllResultFields.put(NodeRef.of(node), ImmutableList.copyOf(expressions));
+        outputExpressions.put(NodeRef.of(node), ImmutableList.copyOf(expressions));
     }
 
-    public List<Field> getSelectAllResultFields(AllColumns node)
+    public List<Expression> getOutputExpressions(Node node)
     {
-        return selectAllResultFields.get(NodeRef.of(node));
-    }
-
-    public void setSelectExpressions(Node node, List<SelectExpression> expressions)
-    {
-        selectExpressions.put(NodeRef.of(node), ImmutableList.copyOf(expressions));
-    }
-
-    public List<SelectExpression> getSelectExpressions(Node node)
-    {
-        return selectExpressions.get(NodeRef.of(node));
+        return outputExpressions.get(NodeRef.of(node));
     }
 
     public void setHaving(QuerySpecification node, Expression expression)
@@ -472,14 +460,14 @@ public class Analysis
         tables.put(NodeRef.of(table), handle);
     }
 
-    public ResolvedFunction getResolvedFunction(FunctionCall function)
+    public Signature getFunctionSignature(FunctionCall function)
     {
-        return resolvedFunctions.get(NodeRef.of(function));
+        return functionSignature.get(NodeRef.of(function));
     }
 
-    public void addResolvedFunction(Map<NodeRef<FunctionCall>, ResolvedFunction> infos)
+    public void addFunctionSignatures(Map<NodeRef<FunctionCall>, Signature> infos)
     {
-        resolvedFunctions.putAll(infos);
+        functionSignature.putAll(infos);
     }
 
     public Set<NodeRef<Expression>> getColumnReferences()
@@ -661,32 +649,6 @@ public class Analysis
     public boolean isOrderByRedundant(OrderBy orderBy)
     {
         return redundantOrderBy.contains(NodeRef.of(orderBy));
-    }
-
-    @Immutable
-    public static final class SelectExpression
-    {
-        // expression refers to a select item, either to be returned directly, or unfolded by all-fields reference
-        // unfoldedExpressions applies to the latter case, and is a list of subscript expressions
-        // referencing each field of the row.
-        private final Expression expression;
-        private final Optional<List<Expression>> unfoldedExpressions;
-
-        public SelectExpression(Expression expression, Optional<List<Expression>> unfoldedExpressions)
-        {
-            this.expression = requireNonNull(expression, "expression is null");
-            this.unfoldedExpressions = requireNonNull(unfoldedExpressions);
-        }
-
-        public Expression getExpression()
-        {
-            return expression;
-        }
-
-        public Optional<List<Expression>> getUnfoldedExpressions()
-        {
-            return unfoldedExpressions;
-        }
     }
 
     @Immutable

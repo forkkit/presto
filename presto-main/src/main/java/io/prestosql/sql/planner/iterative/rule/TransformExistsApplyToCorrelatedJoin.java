@@ -18,7 +18,7 @@ import com.google.common.collect.ImmutableMap;
 import io.prestosql.matching.Captures;
 import io.prestosql.matching.Pattern;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.Signature;
 import io.prestosql.sql.planner.Symbol;
 import io.prestosql.sql.planner.iterative.Rule;
 import io.prestosql.sql.planner.optimizations.PlanNodeDecorrelator;
@@ -45,7 +45,6 @@ import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static io.prestosql.spi.type.BigintType.BIGINT;
 import static io.prestosql.spi.type.BooleanType.BOOLEAN;
-import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toSqlType;
 import static io.prestosql.sql.planner.plan.AggregationNode.globalAggregation;
 import static io.prestosql.sql.planner.plan.CorrelatedJoinNode.Type.INNER;
 import static io.prestosql.sql.planner.plan.CorrelatedJoinNode.Type.LEFT;
@@ -80,14 +79,12 @@ public class TransformExistsApplyToCorrelatedJoin
     private static final Pattern<ApplyNode> PATTERN = applyNode();
 
     private static final QualifiedName COUNT = QualifiedName.of("count");
-    private final Metadata metadata;
-    private final ResolvedFunction countFunction;
+    private final Signature countSignature;
 
     public TransformExistsApplyToCorrelatedJoin(Metadata metadata)
     {
         requireNonNull(metadata, "metadata is null");
-        this.metadata = metadata;
-        countFunction = metadata.resolveFunction(COUNT, ImmutableList.of());
+        countSignature = metadata.resolveFunction(COUNT, ImmutableList.of());
     }
 
     @Override
@@ -134,7 +131,7 @@ public class TransformExistsApplyToCorrelatedJoin
                         false),
                 Assignments.of(subqueryTrue, TRUE_LITERAL));
 
-        PlanNodeDecorrelator decorrelator = new PlanNodeDecorrelator(metadata, context.getSymbolAllocator(), context.getLookup());
+        PlanNodeDecorrelator decorrelator = new PlanNodeDecorrelator(context.getSymbolAllocator(), context.getLookup());
         if (!decorrelator.decorrelateFilters(subquery, applyNode.getCorrelation()).isPresent()) {
             return Optional.empty();
         }
@@ -165,7 +162,7 @@ public class TransformExistsApplyToCorrelatedJoin
                                 context.getIdAllocator().getNextId(),
                                 parent.getSubquery(),
                                 ImmutableMap.of(count, new Aggregation(
-                                        countFunction,
+                                        countSignature,
                                         ImmutableList.of(),
                                         false,
                                         Optional.empty(),
@@ -176,7 +173,7 @@ public class TransformExistsApplyToCorrelatedJoin
                                 AggregationNode.Step.SINGLE,
                                 Optional.empty(),
                                 Optional.empty()),
-                        Assignments.of(exists, new ComparisonExpression(GREATER_THAN, count.toSymbolReference(), new Cast(new LongLiteral("0"), toSqlType(BIGINT))))),
+                        Assignments.of(exists, new ComparisonExpression(GREATER_THAN, count.toSymbolReference(), new Cast(new LongLiteral("0"), BIGINT.toString())))),
                 parent.getCorrelation(),
                 INNER,
                 TRUE_LITERAL,

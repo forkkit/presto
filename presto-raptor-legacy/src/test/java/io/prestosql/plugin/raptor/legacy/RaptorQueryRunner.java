@@ -56,10 +56,7 @@ public final class RaptorQueryRunner
             Map<String, String> extraRaptorProperties)
             throws Exception
     {
-        DistributedQueryRunner queryRunner = DistributedQueryRunner.builder(createSession("tpch"))
-                .setNodeCount(2)
-                .setExtraProperties(extraProperties)
-                .build();
+        DistributedQueryRunner queryRunner = new DistributedQueryRunner(createSession("tpch"), 2, extraProperties);
 
         queryRunner.installPlugin(new TpchPlugin());
         queryRunner.createCatalog("tpch", "tpch");

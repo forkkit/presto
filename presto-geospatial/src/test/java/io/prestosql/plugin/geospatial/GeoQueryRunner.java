@@ -24,15 +24,14 @@ import static io.prestosql.testing.TestingSession.testSessionBuilder;
 
 public final class GeoQueryRunner
 {
+    private static final int DEFAULT_WORKER_COUNT = 4;
+
     private GeoQueryRunner() {}
 
     private static DistributedQueryRunner createQueryRunner(Map<String, String> extraProperties)
             throws Exception
     {
-        DistributedQueryRunner queryRunner = DistributedQueryRunner.builder(testSessionBuilder().build())
-                .setNodeCount(4)
-                .setExtraProperties(extraProperties)
-                .build();
+        DistributedQueryRunner queryRunner = new DistributedQueryRunner(testSessionBuilder().build(), DEFAULT_WORKER_COUNT, extraProperties);
         queryRunner.installPlugin(new GeoPlugin());
         return queryRunner;
     }

@@ -16,12 +16,11 @@ package io.prestosql.operator.aggregation;
 import com.google.common.collect.ImmutableList;
 import io.prestosql.spi.block.Block;
 import io.prestosql.spi.block.BlockBuilder;
+import io.prestosql.spi.type.DateType;
 import io.prestosql.spi.type.SqlDate;
-import io.prestosql.spi.type.Type;
+import io.prestosql.spi.type.StandardTypes;
 
 import java.util.List;
-
-import static io.prestosql.spi.type.DateType.DATE;
 
 public class TestDateMaxAggregation
         extends AbstractTestAggregationFunction
@@ -29,9 +28,9 @@ public class TestDateMaxAggregation
     @Override
     protected Block[] getSequenceBlocks(int start, int length)
     {
-        BlockBuilder blockBuilder = DATE.createBlockBuilder(null, length);
+        BlockBuilder blockBuilder = DateType.DATE.createBlockBuilder(null, length);
         for (int i = start; i < start + length; i++) {
-            DATE.writeLong(blockBuilder, i);
+            DateType.DATE.writeLong(blockBuilder, i);
         }
         return new Block[] {blockBuilder.build()};
     }
@@ -52,8 +51,8 @@ public class TestDateMaxAggregation
     }
 
     @Override
-    protected List<Type> getFunctionParameterTypes()
+    protected List<String> getFunctionParameterTypes()
     {
-        return ImmutableList.of(DATE);
+        return ImmutableList.of(StandardTypes.DATE);
     }
 }

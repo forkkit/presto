@@ -17,7 +17,6 @@ import com.google.common.collect.ImmutableList;
 import io.prestosql.annotation.UsedByGeneratedCode;
 import io.prestosql.metadata.BoundVariables;
 import io.prestosql.metadata.FunctionKind;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlScalarFunction;
@@ -26,7 +25,6 @@ import io.prestosql.spi.PrestoException;
 import io.prestosql.spi.block.Block;
 import io.prestosql.spi.block.BlockBuilder;
 import io.prestosql.spi.type.Type;
-import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.sql.gen.VarArgsToArrayAdapterGenerator;
 
 import java.lang.invoke.MethodHandle;
@@ -36,7 +34,7 @@ import static io.prestosql.metadata.Signature.typeVariable;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.ArgumentProperty.valueTypeArgumentProperty;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.NullConvention.RETURN_NULL_ON_NULL;
 import static io.prestosql.spi.StandardErrorCode.INVALID_FUNCTION_ARGUMENT;
-import static io.prestosql.spi.type.TypeSignature.arrayType;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.sql.gen.VarArgsToArrayAdapterGenerator.generateVarArgsToArrayAdapter;
 import static io.prestosql.util.Reflection.methodHandle;
 import static java.util.Collections.nCopies;
@@ -54,18 +52,31 @@ public final class ArrayConcatFunction
 
     private ArrayConcatFunction()
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        FUNCTION_NAME,
-                        FunctionKind.SCALAR,
-                        ImmutableList.of(typeVariable("E")),
-                        ImmutableList.of(),
-                        arrayType(new TypeSignature("E")),
-                        ImmutableList.of(arrayType(new TypeSignature("E"))),
-                        true),
-                false,
-                true,
-                DESCRIPTION));
+        super(new Signature(FUNCTION_NAME,
+                FunctionKind.SCALAR,
+                ImmutableList.of(typeVariable("E")),
+                ImmutableList.of(),
+                parseTypeSignature("array(E)"),
+                ImmutableList.of(parseTypeSignature("array(E)")),
+                true));
+    }
+
+    @Override
+    public boolean isHidden()
+    {
+        return false;
+    }
+
+    @Override
+    public boolean isDeterministic()
+    {
+        return true;
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return DESCRIPTION;
     }
 
     @Override
@@ -88,7 +99,8 @@ public final class ArrayConcatFunction
                 false,
                 nCopies(arity, valueTypeArgumentProperty(RETURN_NULL_ON_NULL)),
                 methodHandleAndConstructor.getMethodHandle(),
-                Optional.of(methodHandleAndConstructor.getConstructor()));
+                Optional.of(methodHandleAndConstructor.getConstructor()),
+                isDeterministic());
     }
 
     @UsedByGeneratedCode

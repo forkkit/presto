@@ -19,7 +19,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.Signature;
 import io.prestosql.sql.planner.OrderingScheme;
 import io.prestosql.sql.planner.Symbol;
 import io.prestosql.sql.tree.Expression;
@@ -324,28 +324,28 @@ public class WindowNode
     @Immutable
     public static final class Function
     {
-        private final ResolvedFunction resolvedFunction;
+        private final Signature signature;
         private final List<Expression> arguments;
         private final Frame frame;
         private final boolean ignoreNulls;
 
         @JsonCreator
         public Function(
-                @JsonProperty("resolvedFunction") ResolvedFunction resolvedFunction,
+                @JsonProperty("signature") Signature signature,
                 @JsonProperty("arguments") List<Expression> arguments,
                 @JsonProperty("frame") Frame frame,
                 @JsonProperty("ignoreNulls") boolean ignoreNulls)
         {
-            this.resolvedFunction = requireNonNull(resolvedFunction, "Signature is null");
+            this.signature = requireNonNull(signature, "Signature is null");
             this.arguments = requireNonNull(arguments, "arguments is null");
             this.frame = requireNonNull(frame, "Frame is null");
             this.ignoreNulls = ignoreNulls;
         }
 
         @JsonProperty
-        public ResolvedFunction getResolvedFunction()
+        public Signature getSignature()
         {
-            return resolvedFunction;
+            return signature;
         }
 
         @JsonProperty
@@ -369,7 +369,7 @@ public class WindowNode
         @Override
         public int hashCode()
         {
-            return Objects.hash(resolvedFunction, arguments, frame, ignoreNulls);
+            return Objects.hash(signature, arguments, frame, ignoreNulls);
         }
 
         @Override
@@ -382,7 +382,7 @@ public class WindowNode
                 return false;
             }
             Function other = (Function) obj;
-            return Objects.equals(this.resolvedFunction, other.resolvedFunction) &&
+            return Objects.equals(this.signature, other.signature) &&
                     Objects.equals(this.arguments, other.arguments) &&
                     Objects.equals(this.frame, other.frame) &&
                     this.ignoreNulls == other.ignoreNulls;

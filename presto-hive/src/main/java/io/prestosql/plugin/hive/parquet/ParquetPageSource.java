@@ -139,7 +139,7 @@ public class ParquetPageSource
     }
 
     private final class ParquetBlockLoader
-            implements LazyBlockLoader
+            implements LazyBlockLoader<LazyBlock>
     {
         private final int expectedBatchId = batchId;
         private final Field field;
@@ -151,14 +151,14 @@ public class ParquetPageSource
         }
 
         @Override
-        public final Block load()
+        public final void load(LazyBlock lazyBlock)
         {
             checkState(!loaded, "Already loaded");
             checkState(batchId == expectedBatchId);
 
-            Block block;
             try {
-                block = parquetReader.readBlock(field);
+                Block block = parquetReader.readBlock(field);
+                lazyBlock.setBlock(block);
             }
             catch (ParquetCorruptionException e) {
                 throw new PrestoException(HIVE_BAD_DATA, e);
@@ -166,9 +166,7 @@ public class ParquetPageSource
             catch (IOException e) {
                 throw new PrestoException(HIVE_CURSOR_ERROR, e);
             }
-
             loaded = true;
-            return block;
         }
     }
 }

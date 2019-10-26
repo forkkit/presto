@@ -30,10 +30,6 @@ standalonePathSpecification
     : pathSpecification EOF
     ;
 
-standaloneType
-    : type EOF
-    ;
-
 statement
     : query                                                            #statementDefault
     | USE schema=identifier                                            #use
@@ -297,7 +293,7 @@ primaryExpression
     : NULL                                                                                #nullLiteral
     | interval                                                                            #intervalLiteral
     | identifier string                                                                   #typeConstructor
-    | DOUBLE PRECISION string                                                             #typeConstructor
+    | DOUBLE_PRECISION string                                                             #typeConstructor
     | number                                                                              #numericLiteral
     | booleanValue                                                                        #booleanLiteral
     | string                                                                              #stringLiteral
@@ -376,24 +372,23 @@ normalForm
     ;
 
 type
-    : ROW '(' rowField (',' rowField)* ')'                                         #rowType
-    | INTERVAL from=intervalField (TO to=intervalField)?                           #intervalType
-    | base=TIMESTAMP ('(' precision = INTEGER_VALUE ')')? (WITHOUT TIME ZONE)?     #dateTimeType
-    | base=TIMESTAMP ('(' precision = INTEGER_VALUE ')')? WITH TIME ZONE           #dateTimeType
-    | base=TIME ('(' precision = INTEGER_VALUE ')')? (WITHOUT TIME ZONE)?          #dateTimeType
-    | base=TIME ('(' precision = INTEGER_VALUE ')')? WITH TIME ZONE                #dateTimeType
-    | DOUBLE PRECISION                                                             #doublePrecisionType
-    | ARRAY '<' type '>'                                                           #legacyArrayType
-    | MAP '<' keyType=type ',' valueType=type '>'                                  #legacyMapType
-    | type ARRAY ('[' INTEGER_VALUE ']')?                                          #arrayType
-    | identifier ('(' typeParameter (',' typeParameter)* ')')?                     #genericType
+    : type ARRAY
+    | ARRAY '<' type '>'
+    | MAP '<' type ',' type '>'
+    | ROW '(' identifier type (',' identifier type)* ')'
+    | baseType ('(' typeParameter (',' typeParameter)* ')')?
+    | INTERVAL from=intervalField TO to=intervalField
     ;
-
-rowField
-    : identifier? type;
 
 typeParameter
     : INTEGER_VALUE | type
+    ;
+
+baseType
+    : TIME_WITH_TIME_ZONE
+    | TIMESTAMP_WITH_TIME_ZONE
+    | DOUBLE_PRECISION
+    | identifier
     ;
 
 whenClause
@@ -501,7 +496,7 @@ nonReserved
     : ADD | ADMIN | ALL | ANALYZE | ANY | ARRAY | ASC | AT
     | BERNOULLI
     | CALL | CASCADE | CATALOGS | COLUMN | COLUMNS | COMMENT | COMMIT | COMMITTED | CURRENT
-    | DATA | DATE | DAY | DEFINER | DESC | DISTRIBUTED | DOUBLE
+    | DATA | DATE | DAY | DEFINER | DESC | DISTRIBUTED
     | EXCLUDING | EXPLAIN
     | FETCH | FILTER | FIRST | FOLLOWING | FORMAT | FUNCTIONS
     | GRANT | GRANTED | GRANTS | GRAPHVIZ
@@ -512,14 +507,14 @@ nonReserved
     | MAP | MINUTE | MONTH
     | NEXT | NFC | NFD | NFKC | NFKD | NO | NONE | NULLIF | NULLS
     | OFFSET | ONLY | OPTION | ORDINALITY | OUTPUT | OVER
-    | PARTITION | PARTITIONS | PATH | POSITION | PRECEDING | PRECISION | PRIVILEGES | PROPERTIES
+    | PARTITION | PARTITIONS | PATH | POSITION | PRECEDING | PRIVILEGES | PROPERTIES
     | RANGE | READ | RENAME | REPEATABLE | REPLACE | RESET | RESPECT | RESTRICT | REVOKE | ROLE | ROLES | ROLLBACK | ROW | ROWS
     | SCHEMA | SCHEMAS | SECOND | SECURITY | SERIALIZABLE | SESSION | SET | SETS
     | SHOW | SOME | START | STATS | SUBSTRING | SYSTEM
     | TABLES | TABLESAMPLE | TEXT | TIES | TIME | TIMESTAMP | TO | TRANSACTION | TRY_CAST | TYPE
     | UNBOUNDED | UNCOMMITTED | USE | USER
     | VALIDATE | VERBOSE | VIEW
-    | WITHOUT | WORK | WRITE
+    | WORK | WRITE
     | YEAR
     | ZONE
     ;
@@ -569,7 +564,6 @@ DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';
 DISTINCT: 'DISTINCT';
 DISTRIBUTED: 'DISTRIBUTED';
-DOUBLE: 'DOUBLE';
 DROP: 'DROP';
 ELSE: 'ELSE';
 END: 'END';
@@ -656,7 +650,6 @@ POSITION: 'POSITION';
 PRECEDING: 'PRECEDING';
 PREPARE: 'PREPARE';
 PRIVILEGES: 'PRIVILEGES';
-PRECISION: 'PRECISION';
 PROPERTIES: 'PROPERTIES';
 RANGE: 'RANGE';
 READ: 'READ';
@@ -718,7 +711,6 @@ VIEW: 'VIEW';
 WHEN: 'WHEN';
 WHERE: 'WHERE';
 WITH: 'WITH';
-WITHOUT: 'WITHOUT';
 WORK: 'WORK';
 WRITE: 'WRITE';
 YEAR: 'YEAR';
@@ -781,6 +773,18 @@ QUOTED_IDENTIFIER
 
 BACKQUOTED_IDENTIFIER
     : '`' ( ~'`' | '``' )* '`'
+    ;
+
+TIME_WITH_TIME_ZONE
+    : 'TIME' WS 'WITH' WS 'TIME' WS 'ZONE'
+    ;
+
+TIMESTAMP_WITH_TIME_ZONE
+    : 'TIMESTAMP' WS 'WITH' WS 'TIME' WS 'ZONE'
+    ;
+
+DOUBLE_PRECISION
+    : 'DOUBLE' WS 'PRECISION'
     ;
 
 fragment EXPONENT

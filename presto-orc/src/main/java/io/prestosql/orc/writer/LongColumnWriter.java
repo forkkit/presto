@@ -21,7 +21,6 @@ import io.prestosql.orc.checkpoint.LongStreamCheckpoint;
 import io.prestosql.orc.metadata.ColumnEncoding;
 import io.prestosql.orc.metadata.CompressedMetadataWriter;
 import io.prestosql.orc.metadata.CompressionKind;
-import io.prestosql.orc.metadata.OrcColumnId;
 import io.prestosql.orc.metadata.RowGroupIndex;
 import io.prestosql.orc.metadata.Stream;
 import io.prestosql.orc.metadata.Stream.StreamKind;
@@ -53,7 +52,7 @@ public class LongColumnWriter
         implements ColumnWriter
 {
     private static final int INSTANCE_SIZE = ClassLayout.parseClass(LongColumnWriter.class).instanceSize();
-    private final OrcColumnId columnId;
+    private final int column;
     private final Type type;
     private final boolean compressed;
     private final ColumnEncoding columnEncoding;
@@ -67,9 +66,10 @@ public class LongColumnWriter
 
     private boolean closed;
 
-    public LongColumnWriter(OrcColumnId columnId, Type type, CompressionKind compression, int bufferSize, Supplier<LongValueStatisticsBuilder> statisticsBuilderSupplier)
+    public LongColumnWriter(int column, Type type, CompressionKind compression, int bufferSize, Supplier<LongValueStatisticsBuilder> statisticsBuilderSupplier)
     {
-        this.columnId = requireNonNull(columnId, "columnId is null");
+        checkArgument(column >= 0, "column is negative");
+        this.column = column;
         this.type = requireNonNull(type, "type is null");
         this.compressed = requireNonNull(compression, "compression is null") != NONE;
         this.columnEncoding = new ColumnEncoding(DIRECT_V2, 0);
@@ -80,9 +80,9 @@ public class LongColumnWriter
     }
 
     @Override
-    public Map<OrcColumnId, ColumnEncoding> getColumnEncodings()
+    public Map<Integer, ColumnEncoding> getColumnEncodings()
     {
-        return ImmutableMap.of(columnId, columnEncoding);
+        return ImmutableMap.of(column, columnEncoding);
     }
 
     @Override
@@ -114,13 +114,13 @@ public class LongColumnWriter
     }
 
     @Override
-    public Map<OrcColumnId, ColumnStatistics> finishRowGroup()
+    public Map<Integer, ColumnStatistics> finishRowGroup()
     {
         checkState(!closed);
         ColumnStatistics statistics = statisticsBuilder.buildColumnStatistics();
         rowGroupColumnStatistics.add(statistics);
         statisticsBuilder = statisticsBuilderSupplier.get();
-        return ImmutableMap.of(columnId, statistics);
+        return ImmutableMap.of(column, statistics);
     }
 
     @Override
@@ -132,10 +132,10 @@ public class LongColumnWriter
     }
 
     @Override
-    public Map<OrcColumnId, ColumnStatistics> getColumnStripeStatistics()
+    public Map<Integer, ColumnStatistics> getColumnStripeStatistics()
     {
         checkState(closed);
-        return ImmutableMap.of(columnId, ColumnStatistics.mergeColumnStatistics(rowGroupColumnStatistics));
+        return ImmutableMap.of(column, ColumnStatistics.mergeColumnStatistics(rowGroupColumnStatistics));
     }
 
     @Override
@@ -158,7 +158,7 @@ public class LongColumnWriter
         }
 
         Slice slice = metadataWriter.writeRowIndexes(rowGroupIndexes.build());
-        Stream stream = new Stream(columnId, StreamKind.ROW_INDEX, slice.length(), false);
+        Stream stream = new Stream(column, StreamKind.ROW_INDEX, slice.length(), false);
         return ImmutableList.of(new StreamDataOutput(slice, stream));
     }
 
@@ -179,8 +179,8 @@ public class LongColumnWriter
         checkState(closed);
 
         ImmutableList.Builder<StreamDataOutput> outputDataStreams = ImmutableList.builder();
-        presentStream.getStreamDataOutput(columnId).ifPresent(outputDataStreams::add);
-        outputDataStreams.add(dataStream.getStreamDataOutput(columnId));
+        presentStream.getStreamDataOutput(column).ifPresent(outputDataStreams::add);
+        outputDataStreams.add(dataStream.getStreamDataOutput(column));
         return outputDataStreams.build();
     }
 

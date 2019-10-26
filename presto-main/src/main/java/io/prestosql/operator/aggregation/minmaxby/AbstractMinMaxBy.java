@@ -24,9 +24,7 @@ import io.airlift.bytecode.Parameter;
 import io.airlift.bytecode.control.IfStatement;
 import io.airlift.bytecode.expression.BytecodeExpression;
 import io.prestosql.metadata.BoundVariables;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlAggregationFunction;
 import io.prestosql.operator.aggregation.AccumulatorCompiler;
 import io.prestosql.operator.aggregation.AggregationMetadata;
@@ -62,7 +60,6 @@ import static io.airlift.bytecode.expression.BytecodeExpressions.and;
 import static io.airlift.bytecode.expression.BytecodeExpressions.constantBoolean;
 import static io.airlift.bytecode.expression.BytecodeExpressions.not;
 import static io.airlift.bytecode.expression.BytecodeExpressions.or;
-import static io.prestosql.metadata.FunctionKind.AGGREGATE;
 import static io.prestosql.metadata.Signature.orderableTypeParameter;
 import static io.prestosql.metadata.Signature.typeVariable;
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata;
@@ -86,20 +83,13 @@ public abstract class AbstractMinMaxBy
 {
     private final boolean min;
 
-    protected AbstractMinMaxBy(boolean min, String description)
+    protected AbstractMinMaxBy(boolean min)
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        (min ? "min" : "max") + "_by",
-                        AGGREGATE,
-                        ImmutableList.of(orderableTypeParameter("K"), typeVariable("V")),
-                        ImmutableList.of(),
-                        new TypeSignature("V"),
-                        ImmutableList.of(new TypeSignature("V"), new TypeSignature("K")),
-                        false),
-                false,
-                true,
-                description));
+        super((min ? "min" : "max") + "_by",
+                ImmutableList.of(orderableTypeParameter("K"), typeVariable("V")),
+                ImmutableList.of(),
+                new TypeSignature("V"),
+                ImmutableList.of(new TypeSignature("V"), new TypeSignature("K")));
         this.min = min;
     }
 
@@ -159,9 +149,8 @@ public abstract class AbstractMinMaxBy
         MethodHandle inputMethod = methodHandle(generatedClass, "input", stateClazz, Block.class, Block.class, int.class);
         MethodHandle combineMethod = methodHandle(generatedClass, "combine", stateClazz, stateClazz);
         MethodHandle outputMethod = methodHandle(generatedClass, "output", stateClazz, BlockBuilder.class);
-        String name = getFunctionMetadata().getSignature().getName();
         AggregationMetadata aggregationMetadata = new AggregationMetadata(
-                generateAggregationName(name, valueType.getTypeSignature(), inputTypes.stream().map(Type::getTypeSignature).collect(toImmutableList())),
+                generateAggregationName(getSignature().getName(), valueType.getTypeSignature(), inputTypes.stream().map(Type::getTypeSignature).collect(toImmutableList())),
                 createInputParameterMetadata(valueType, keyType),
                 inputMethod,
                 Optional.empty(),
@@ -173,7 +162,7 @@ public abstract class AbstractMinMaxBy
                         stateFactory)),
                 valueType);
         GenericAccumulatorFactoryBinder factory = AccumulatorCompiler.generateAccumulatorFactoryBinder(aggregationMetadata, classLoader);
-        return new InternalAggregationFunction(name, inputTypes, ImmutableList.of(intermediateType), valueType, true, false, factory);
+        return new InternalAggregationFunction(getSignature().getName(), inputTypes, ImmutableList.of(intermediateType), valueType, true, false, factory);
     }
 
     private static List<ParameterMetadata> createInputParameterMetadata(Type value, Type key)

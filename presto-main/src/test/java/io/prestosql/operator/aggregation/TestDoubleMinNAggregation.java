@@ -15,7 +15,7 @@ package io.prestosql.operator.aggregation;
 
 import com.google.common.collect.ImmutableList;
 import io.prestosql.spi.block.Block;
-import io.prestosql.spi.type.Type;
+import io.prestosql.spi.type.StandardTypes;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
@@ -25,8 +25,6 @@ import java.util.PriorityQueue;
 import static io.prestosql.block.BlockAssertions.createDoubleSequenceBlock;
 import static io.prestosql.block.BlockAssertions.createDoublesBlock;
 import static io.prestosql.block.BlockAssertions.createLongRepeatBlock;
-import static io.prestosql.spi.type.BigintType.BIGINT;
-import static io.prestosql.spi.type.DoubleType.DOUBLE;
 
 public class TestDoubleMinNAggregation
         extends AbstractTestAggregationFunction
@@ -44,9 +42,9 @@ public class TestDoubleMinNAggregation
     }
 
     @Override
-    protected List<Type> getFunctionParameterTypes()
+    protected List<String> getFunctionParameterTypes()
     {
-        return ImmutableList.of(DOUBLE, BIGINT);
+        return ImmutableList.of(StandardTypes.DOUBLE, StandardTypes.BIGINT);
     }
 
     @Override

@@ -22,6 +22,12 @@ public class MinAggregationFunction
 
     public MinAggregationFunction()
     {
-        super(NAME, true, "Returns the minimum value of the argument");
+        super(NAME, true);
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "Returns the minimum value of the argument";
     }
 }

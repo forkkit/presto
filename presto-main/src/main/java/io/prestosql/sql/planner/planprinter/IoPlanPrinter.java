@@ -31,6 +31,7 @@ import io.prestosql.spi.predicate.Marker;
 import io.prestosql.spi.predicate.Marker.Bound;
 import io.prestosql.spi.predicate.TupleDomain;
 import io.prestosql.spi.type.Type;
+import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.sql.planner.Plan;
 import io.prestosql.sql.planner.plan.PlanNode;
 import io.prestosql.sql.planner.plan.PlanVisitor;
@@ -269,17 +270,17 @@ public class IoPlanPrinter
     public static class ColumnConstraint
     {
         private final String columnName;
-        private final Type type;
+        private final TypeSignature typeSignature;
         private final FormattedDomain domain;
 
         @JsonCreator
         public ColumnConstraint(
                 @JsonProperty("columnName") String columnName,
-                @JsonProperty("type") Type type,
+                @JsonProperty("typeSignature") TypeSignature typeSignature,
                 @JsonProperty("domain") FormattedDomain domain)
         {
             this.columnName = requireNonNull(columnName, "columnName is null");
-            this.type = requireNonNull(type, "type is null");
+            this.typeSignature = requireNonNull(typeSignature, "type is null");
             this.domain = requireNonNull(domain, "domain is null");
         }
 
@@ -290,9 +291,9 @@ public class IoPlanPrinter
         }
 
         @JsonProperty
-        public Type getType()
+        public TypeSignature getTypeSignature()
         {
-            return type;
+            return typeSignature;
         }
 
         @JsonProperty
@@ -312,14 +313,14 @@ public class IoPlanPrinter
             }
             ColumnConstraint o = (ColumnConstraint) obj;
             return Objects.equals(columnName, o.columnName) &&
-                    Objects.equals(type, o.type) &&
+                    Objects.equals(typeSignature, o.typeSignature) &&
                     Objects.equals(domain, o.domain);
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(columnName, type, domain);
+            return Objects.hash(columnName, typeSignature, domain);
         }
 
         @Override
@@ -327,7 +328,7 @@ public class IoPlanPrinter
         {
             return toStringHelper(this)
                     .add("columnName", columnName)
-                    .add("typeSignature", type)
+                    .add("typeSignature", typeSignature)
                     .add("domain", domain)
                     .toString();
         }
@@ -673,7 +674,7 @@ public class IoPlanPrinter
                 ColumnMetadata columnMetadata = metadata.getColumnMetadata(session, tableHandle, entry.getKey());
                 columnConstraints.add(new ColumnConstraint(
                         columnMetadata.getName(),
-                        columnMetadata.getType(),
+                        columnMetadata.getType().getTypeSignature(),
                         parseDomain(entry.getValue().simplify())));
             }
             return columnConstraints.build();

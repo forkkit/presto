@@ -13,7 +13,6 @@
  */
 package io.prestosql.sql.parser;
 
-import io.prestosql.sql.tree.DataType;
 import io.prestosql.sql.tree.Expression;
 import io.prestosql.sql.tree.Node;
 import io.prestosql.sql.tree.PathSpecification;
@@ -110,11 +109,6 @@ public class SqlParser
     public Expression createExpression(String expression, ParsingOptions parsingOptions)
     {
         return (Expression) invokeParser("expression", expression, SqlBaseParser::standaloneExpression, parsingOptions);
-    }
-
-    public DataType createType(String expression)
-    {
-        return (DataType) invokeParser("type", expression, SqlBaseParser::standaloneType, new ParsingOptions());
     }
 
     public PathSpecification createPathSpecification(String expression)

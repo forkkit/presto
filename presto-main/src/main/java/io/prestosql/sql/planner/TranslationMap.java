@@ -14,7 +14,6 @@
 package io.prestosql.sql.planner;
 
 import com.google.common.collect.ImmutableList;
-import io.prestosql.metadata.ResolvedFunction;
 import io.prestosql.spi.type.Type;
 import io.prestosql.sql.analyzer.Analysis;
 import io.prestosql.sql.analyzer.ResolvedField;
@@ -24,7 +23,6 @@ import io.prestosql.sql.tree.Expression;
 import io.prestosql.sql.tree.ExpressionRewriter;
 import io.prestosql.sql.tree.ExpressionTreeRewriter;
 import io.prestosql.sql.tree.FieldReference;
-import io.prestosql.sql.tree.FunctionCall;
 import io.prestosql.sql.tree.Identifier;
 import io.prestosql.sql.tree.LambdaArgumentDeclaration;
 import io.prestosql.sql.tree.LambdaExpression;
@@ -38,7 +36,6 @@ import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
-import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toSqlType;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -221,25 +218,6 @@ class TranslationMap
             }
 
             @Override
-            public Expression rewriteFunctionCall(FunctionCall node, Void context, ExpressionTreeRewriter<Void> treeRewriter)
-            {
-                ResolvedFunction resolvedFunction = getAnalysis().getResolvedFunction(node);
-                checkArgument(resolvedFunction != null, "Function has not been analyzed: %s", node);
-
-                FunctionCall rewritten = treeRewriter.defaultRewrite(node, context);
-                rewritten = new FunctionCall(
-                        rewritten.getLocation(),
-                        resolvedFunction.toQualifiedName(),
-                        rewritten.getWindow(),
-                        rewritten.getFilter(),
-                        rewritten.getOrderBy(),
-                        rewritten.isDistinct(),
-                        rewritten.getNullTreatment(),
-                        rewritten.getArguments());
-                return coerceIfNecessary(node, rewritten);
-            }
-
-            @Override
             public Expression rewriteDereferenceExpression(DereferenceExpression node, Void context, ExpressionTreeRewriter<Void> treeRewriter)
             {
                 if (analysis.isColumnReference(node)) {
@@ -284,7 +262,7 @@ class TranslationMap
                 if (coercion != null) {
                     rewritten = new Cast(
                             rewritten,
-                            toSqlType(coercion),
+                            coercion.getTypeSignature().toString(),
                             false,
                             analysis.isTypeOnlyCoercion(original));
                 }

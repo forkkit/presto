@@ -63,8 +63,6 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 
-import static io.prestosql.spi.function.OperatorType.CAST;
-
 public interface Metadata
 {
     Set<ConnectorCapabilities> getConnectorCapabilities(Session session, CatalogName catalogName);
@@ -404,9 +402,15 @@ public interface Metadata
 
     Type getType(TypeSignature signature);
 
-    Type fromSqlType(String sqlType);
+    default Type fromSqlType(String sqlType)
+    {
+        return getType(TypeSignature.parseTypeSignature(sqlType)); // TODO: use SQL parser
+    }
 
-    Type getType(TypeId id);
+    default Type getType(TypeId id)
+    {
+        return getType(TypeSignature.parseTypeSignature(id.getId()));
+    }
 
     default Type getParameterizedType(String baseTypeName, List<TypeSignatureParameter> typeParameters)
     {
@@ -425,23 +429,16 @@ public interface Metadata
 
     void addFunctions(List<? extends SqlFunction> functions);
 
-    List<FunctionMetadata> listFunctions();
+    List<SqlFunction> listFunctions();
 
     FunctionInvokerProvider getFunctionInvokerProvider();
 
-    ResolvedFunction resolveFunction(QualifiedName name, List<TypeSignatureProvider> parameterTypes);
+    Signature resolveFunction(QualifiedName name, List<TypeSignatureProvider> parameterTypes);
 
-    ResolvedFunction resolveOperator(OperatorType operatorType, List<? extends Type> argumentTypes)
+    Signature resolveOperator(OperatorType operatorType, List<? extends Type> argumentTypes)
             throws OperatorNotFoundException;
 
-    default ResolvedFunction getCoercion(Type fromType, Type toType)
-    {
-        return getCoercion(CAST, fromType, toType);
-    }
-
-    ResolvedFunction getCoercion(OperatorType operatorType, Type fromType, Type toType);
-
-    ResolvedFunction getCoercion(QualifiedName name, Type fromType, Type toType);
+    Signature getCoercion(Type fromType, Type toType);
 
     /**
      * Is the named function an aggregation function?  This does not need type parameters
@@ -449,13 +446,11 @@ public interface Metadata
      */
     boolean isAggregationFunction(QualifiedName name);
 
-    FunctionMetadata getFunctionMetadata(ResolvedFunction resolvedFunction);
+    WindowFunctionSupplier getWindowFunctionImplementation(Signature signature);
 
-    WindowFunctionSupplier getWindowFunctionImplementation(ResolvedFunction resolvedFunction);
+    InternalAggregationFunction getAggregateFunctionImplementation(Signature signature);
 
-    InternalAggregationFunction getAggregateFunctionImplementation(ResolvedFunction resolvedFunction);
-
-    ScalarFunctionImplementation getScalarFunctionImplementation(ResolvedFunction resolvedFunction);
+    ScalarFunctionImplementation getScalarFunctionImplementation(Signature signature);
 
     ProcedureRegistry getProcedureRegistry();
 

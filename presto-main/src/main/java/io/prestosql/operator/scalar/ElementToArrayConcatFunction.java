@@ -17,7 +17,6 @@ import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
 import io.prestosql.metadata.BoundVariables;
 import io.prestosql.metadata.FunctionKind;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlScalarFunction;
@@ -30,7 +29,7 @@ import java.lang.invoke.MethodHandle;
 import static io.prestosql.metadata.Signature.typeVariable;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.ArgumentProperty.valueTypeArgumentProperty;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.NullConvention.RETURN_NULL_ON_NULL;
-import static io.prestosql.spi.type.TypeSignature.arrayType;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.util.Reflection.methodHandle;
 
 public class ElementToArrayConcatFunction
@@ -47,18 +46,32 @@ public class ElementToArrayConcatFunction
 
     public ElementToArrayConcatFunction()
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        FUNCTION_NAME,
-                        FunctionKind.SCALAR,
-                        ImmutableList.of(typeVariable("E")),
-                        ImmutableList.of(),
-                        arrayType(new TypeSignature("E")),
-                        ImmutableList.of(new TypeSignature("E"), arrayType(new TypeSignature("E"))),
-                        false),
-                false,
-                true,
-                "Concatenates an element to an array"));
+        super(new Signature(
+                FUNCTION_NAME,
+                FunctionKind.SCALAR,
+                ImmutableList.of(typeVariable("E")),
+                ImmutableList.of(),
+                parseTypeSignature("array(E)"),
+                ImmutableList.of(new TypeSignature("E"), parseTypeSignature("array(E)")),
+                false));
+    }
+
+    @Override
+    public boolean isHidden()
+    {
+        return false;
+    }
+
+    @Override
+    public boolean isDeterministic()
+    {
+        return true;
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "Concatenates an element to an array";
     }
 
     @Override
@@ -88,6 +101,7 @@ public class ElementToArrayConcatFunction
                 ImmutableList.of(
                         valueTypeArgumentProperty(RETURN_NULL_ON_NULL),
                         valueTypeArgumentProperty(RETURN_NULL_ON_NULL)),
-                methodHandle);
+                methodHandle,
+                isDeterministic());
     }
 }

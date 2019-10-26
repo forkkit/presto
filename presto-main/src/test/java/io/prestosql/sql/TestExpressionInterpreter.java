@@ -31,7 +31,6 @@ import io.prestosql.sql.planner.FunctionCallBuilder;
 import io.prestosql.sql.planner.Symbol;
 import io.prestosql.sql.planner.TypeAnalyzer;
 import io.prestosql.sql.planner.TypeProvider;
-import io.prestosql.sql.planner.assertions.SymbolAliases;
 import io.prestosql.sql.tree.Expression;
 import io.prestosql.sql.tree.ExpressionRewriter;
 import io.prestosql.sql.tree.ExpressionTreeRewriter;
@@ -40,7 +39,6 @@ import io.prestosql.sql.tree.LikePredicate;
 import io.prestosql.sql.tree.NodeRef;
 import io.prestosql.sql.tree.QualifiedName;
 import io.prestosql.sql.tree.StringLiteral;
-import io.prestosql.sql.tree.SymbolReference;
 import org.intellij.lang.annotations.Language;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -50,7 +48,6 @@ import org.testng.annotations.Test;
 
 import java.math.BigInteger;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -70,8 +67,6 @@ import static io.prestosql.spi.type.TimestampType.TIMESTAMP;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
 import static io.prestosql.spi.type.VarcharType.createVarcharType;
 import static io.prestosql.sql.ExpressionFormatter.formatExpression;
-import static io.prestosql.sql.ExpressionTestUtils.assertExpressionEquals;
-import static io.prestosql.sql.ExpressionTestUtils.getFunctionName;
 import static io.prestosql.sql.ExpressionUtils.rewriteIdentifiersToSymbolReferences;
 import static io.prestosql.sql.ParsingUtil.createParsingOptions;
 import static io.prestosql.sql.planner.ExpressionInterpreter.expressionInterpreter;
@@ -1096,7 +1091,7 @@ public class TestExpressionInterpreter
                 "" +
                         "CASE BIGINT '1' " +
                         "WHEN unbound_long THEN 1 " +
-                        "WHEN CAST(fail('fail') AS bigint) THEN 2 " +
+                        "WHEN CAST(fail('fail') AS integer) THEN 2 " +
                         "ELSE 1 " +
                         "END");
 
@@ -1459,13 +1454,9 @@ public class TestExpressionInterpreter
         if (actualOptimized instanceof Expression) {
             actualOptimized = ExpressionTreeRewriter.rewriteWith(new FailedFunctionRewriter(), (Expression) actualOptimized);
         }
-
-        SymbolAliases.Builder aliases = SymbolAliases.builder();
-        for (Entry<Symbol, Type> entry : SYMBOL_TYPES.allTypes().entrySet()) {
-            aliases.put(entry.getKey().getName(), new SymbolReference(entry.getKey().getName()));
-        }
-        Expression rewrittenExpected = rewriteIdentifiersToSymbolReferences(SQL_PARSER.createExpression(expected));
-        assertExpressionEquals((Expression) actualOptimized, rewrittenExpected, aliases.build());
+        assertEquals(
+                actualOptimized,
+                rewriteIdentifiersToSymbolReferences(SQL_PARSER.createExpression(expected)));
     }
 
     private static Object optimize(@Language("SQL") String expression)
@@ -1544,7 +1535,7 @@ public class TestExpressionInterpreter
         @Override
         public Expression rewriteFunctionCall(FunctionCall node, Object context, ExpressionTreeRewriter<Object> treeRewriter)
         {
-            if (getFunctionName(node).equals(QualifiedName.of("fail"))) {
+            if (node.getName().equals(QualifiedName.of("fail"))) {
                 return new FunctionCallBuilder(METADATA)
                         .setName(QualifiedName.of("fail"))
                         .addArgument(VARCHAR, new StringLiteral("fail"))

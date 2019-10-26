@@ -16,9 +16,7 @@ package io.prestosql.operator.aggregation;
 import com.google.common.collect.ImmutableList;
 import io.airlift.bytecode.DynamicClassLoader;
 import io.prestosql.metadata.BoundVariables;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlAggregationFunction;
 import io.prestosql.operator.aggregation.AggregationMetadata.AccumulatorStateDescriptor;
 import io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata;
@@ -36,13 +34,12 @@ import java.lang.invoke.MethodHandle;
 import java.util.List;
 import java.util.Optional;
 
-import static io.prestosql.metadata.FunctionKind.AGGREGATE;
 import static io.prestosql.metadata.Signature.typeVariable;
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata.ParameterType.INPUT_CHANNEL;
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata.ParameterType.STATE;
 import static io.prestosql.operator.aggregation.AggregationUtils.generateAggregationName;
 import static io.prestosql.spi.StandardErrorCode.NOT_SUPPORTED;
-import static io.prestosql.spi.type.TypeSignature.functionType;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.util.Reflection.methodHandle;
 import static java.lang.String.format;
 
@@ -66,22 +63,21 @@ public class ReduceAggregationFunction
 
     public ReduceAggregationFunction()
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        NAME,
-                        AGGREGATE,
-                        ImmutableList.of(typeVariable("T"), typeVariable("S")),
-                        ImmutableList.of(),
+        super(NAME,
+                ImmutableList.of(typeVariable("T"), typeVariable("S")),
+                ImmutableList.of(),
+                new TypeSignature("S"),
+                ImmutableList.of(
+                        new TypeSignature("T"),
                         new TypeSignature("S"),
-                        ImmutableList.of(
-                                new TypeSignature("T"),
-                                new TypeSignature("S"),
-                                functionType(new TypeSignature("S"), new TypeSignature("T"), new TypeSignature("S")),
-                                functionType(new TypeSignature("S"), new TypeSignature("S"), new TypeSignature("S"))),
-                        false),
-                false,
-                true,
-                "Reduce input elements into a single value"));
+                        parseTypeSignature("function(S,T,S)"),
+                        parseTypeSignature("function(S,S,S)")));
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "Reduce input elements into a single value";
     }
 
     @Override
@@ -135,9 +131,8 @@ public class ReduceAggregationFunction
             throw new PrestoException(NOT_SUPPORTED, format("State type not supported for %s: %s", NAME, stateType.getDisplayName()));
         }
 
-        String name = getFunctionMetadata().getSignature().getName();
         AggregationMetadata metadata = new AggregationMetadata(
-                generateAggregationName(name, inputType.getTypeSignature(), ImmutableList.of(inputType.getTypeSignature())),
+                generateAggregationName(getSignature().getName(), inputType.getTypeSignature(), ImmutableList.of(inputType.getTypeSignature())),
                 createInputParameterMetadata(inputType, stateType),
                 inputMethodHandle.asType(
                         inputMethodHandle.type()
@@ -151,7 +146,7 @@ public class ReduceAggregationFunction
 
         GenericAccumulatorFactoryBinder factory = AccumulatorCompiler.generateAccumulatorFactoryBinder(metadata, classLoader);
         return new InternalAggregationFunction(
-                name,
+                getSignature().getName(),
                 ImmutableList.of(inputType),
                 ImmutableList.of(stateType),
                 stateType,

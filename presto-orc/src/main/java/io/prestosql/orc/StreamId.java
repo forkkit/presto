@@ -13,36 +13,33 @@
  */
 package io.prestosql.orc;
 
-import io.prestosql.orc.metadata.OrcColumnId;
 import io.prestosql.orc.metadata.Stream;
 import io.prestosql.orc.metadata.Stream.StreamKind;
 
 import java.util.Objects;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
-import static java.util.Objects.requireNonNull;
 
 public final class StreamId
 {
-    private final OrcColumnId columnId;
+    private final int column;
     private final StreamKind streamKind;
 
     public StreamId(Stream stream)
     {
-        requireNonNull(stream, "stream is null");
-        this.columnId = stream.getColumnId();
+        this.column = stream.getColumn();
         this.streamKind = stream.getStreamKind();
     }
 
-    public StreamId(OrcColumnId columnId, StreamKind streamKind)
+    public StreamId(int column, StreamKind streamKind)
     {
-        this.columnId = columnId;
+        this.column = column;
         this.streamKind = streamKind;
     }
 
-    public OrcColumnId getColumnId()
+    public int getColumn()
     {
-        return columnId;
+        return column;
     }
 
     public StreamKind getStreamKind()
@@ -53,28 +50,29 @@ public final class StreamId
     @Override
     public int hashCode()
     {
-        return Objects.hash(columnId, streamKind);
+        return Objects.hash(column, streamKind);
     }
 
     @Override
-    public boolean equals(Object o)
+    public boolean equals(Object obj)
     {
-        if (this == o) {
+        if (this == obj) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        StreamId streamId = (StreamId) o;
-        return Objects.equals(columnId, streamId.columnId) &&
-                streamKind == streamId.streamKind;
+
+        StreamId other = (StreamId) obj;
+        return column == other.column &&
+                streamKind == other.streamKind;
     }
 
     @Override
     public String toString()
     {
         return toStringHelper(this)
-                .add("columnId", columnId)
+                .add("column", column)
                 .add("streamKind", streamKind)
                 .toString();
     }

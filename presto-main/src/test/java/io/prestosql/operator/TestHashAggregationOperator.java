@@ -23,6 +23,7 @@ import io.prestosql.ExceededMemoryLimitException;
 import io.prestosql.RowPagesBuilder;
 import io.prestosql.memory.context.AggregatedMemoryContext;
 import io.prestosql.metadata.Metadata;
+import io.prestosql.metadata.Signature;
 import io.prestosql.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import io.prestosql.operator.aggregation.InternalAggregationFunction;
 import io.prestosql.operator.aggregation.builder.HashAggregationBuilder;
@@ -36,7 +37,6 @@ import io.prestosql.spiller.SpillerFactory;
 import io.prestosql.sql.gen.JoinCompiler;
 import io.prestosql.sql.planner.plan.AggregationNode.Step;
 import io.prestosql.sql.planner.plan.PlanNodeId;
-import io.prestosql.sql.tree.QualifiedName;
 import io.prestosql.testing.MaterializedResult;
 import io.prestosql.testing.TestingTaskContext;
 import org.testng.annotations.AfterMethod;
@@ -65,6 +65,7 @@ import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static io.airlift.units.DataSize.succinctBytes;
 import static io.prestosql.RowPagesBuilder.rowPagesBuilder;
 import static io.prestosql.SessionTestUtils.TEST_SESSION;
+import static io.prestosql.metadata.FunctionKind.AGGREGATE;
 import static io.prestosql.metadata.MetadataManager.createTestMetadataManager;
 import static io.prestosql.operator.GroupByHashYieldAssertion.GroupByHashYieldResult;
 import static io.prestosql.operator.GroupByHashYieldAssertion.createPagesWithDistinctHashKeys;
@@ -77,8 +78,8 @@ import static io.prestosql.operator.OperatorAssertion.toPages;
 import static io.prestosql.spi.type.BigintType.BIGINT;
 import static io.prestosql.spi.type.BooleanType.BOOLEAN;
 import static io.prestosql.spi.type.DoubleType.DOUBLE;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
-import static io.prestosql.sql.analyzer.TypeSignatureProvider.fromTypes;
 import static io.prestosql.testing.MaterializedResult.resultBuilder;
 import static io.prestosql.testing.TestingTaskContext.createTaskContext;
 import static java.lang.String.format;
@@ -96,13 +97,13 @@ public class TestHashAggregationOperator
     private static final Metadata metadata = createTestMetadataManager();
 
     private static final InternalAggregationFunction LONG_AVERAGE = metadata.getAggregateFunctionImplementation(
-            metadata.resolveFunction(QualifiedName.of("avg"), fromTypes(BIGINT)));
+            new Signature("avg", AGGREGATE, DOUBLE.getTypeSignature(), BIGINT.getTypeSignature()));
     private static final InternalAggregationFunction LONG_SUM = metadata.getAggregateFunctionImplementation(
-            metadata.resolveFunction(QualifiedName.of("sum"), fromTypes(BIGINT)));
+            new Signature("sum", AGGREGATE, BIGINT.getTypeSignature(), BIGINT.getTypeSignature()));
     private static final InternalAggregationFunction COUNT = metadata.getAggregateFunctionImplementation(
-            metadata.resolveFunction(QualifiedName.of("count"), ImmutableList.of()));
+            new Signature("count", AGGREGATE, BIGINT.getTypeSignature()));
     private static final InternalAggregationFunction LONG_MIN = metadata.getAggregateFunctionImplementation(
-            metadata.resolveFunction(QualifiedName.of("min"), fromTypes(BIGINT)));
+            new Signature("min", AGGREGATE, BIGINT.getTypeSignature(), BIGINT.getTypeSignature()));
 
     private static final int MAX_BLOCK_SIZE_IN_BYTES = 64 * 1024;
 
@@ -161,11 +162,11 @@ public class TestHashAggregationOperator
         int numberOfRows = 40_000;
         Metadata metadata = createTestMetadataManager();
         InternalAggregationFunction countVarcharColumn = metadata.getAggregateFunctionImplementation(
-                metadata.resolveFunction(QualifiedName.of("count"), fromTypes(VARCHAR)));
+                new Signature("count", AGGREGATE, BIGINT.getTypeSignature(), VARCHAR.getTypeSignature()));
         InternalAggregationFunction countBooleanColumn = metadata.getAggregateFunctionImplementation(
-                metadata.resolveFunction(QualifiedName.of("count"), fromTypes(BOOLEAN)));
+                new Signature("count", AGGREGATE, BIGINT.getTypeSignature(), BOOLEAN.getTypeSignature()));
         InternalAggregationFunction maxVarcharColumn = metadata.getAggregateFunctionImplementation(
-                metadata.resolveFunction(QualifiedName.of("max"), fromTypes(VARCHAR)));
+                new Signature("max", AGGREGATE, VARCHAR.getTypeSignature(), VARCHAR.getTypeSignature()));
         List<Integer> hashChannels = Ints.asList(1);
         RowPagesBuilder rowPagesBuilder = rowPagesBuilder(hashEnabled, hashChannels, VARCHAR, VARCHAR, VARCHAR, BIGINT, BOOLEAN);
         List<Page> input = rowPagesBuilder
@@ -219,11 +220,11 @@ public class TestHashAggregationOperator
     {
         Metadata metadata = createTestMetadataManager();
         InternalAggregationFunction countVarcharColumn = metadata.getAggregateFunctionImplementation(
-                metadata.resolveFunction(QualifiedName.of("count"), fromTypes(VARCHAR)));
+                new Signature("count", AGGREGATE, BIGINT.getTypeSignature(), VARCHAR.getTypeSignature()));
         InternalAggregationFunction countBooleanColumn = metadata.getAggregateFunctionImplementation(
-                metadata.resolveFunction(QualifiedName.of("count"), fromTypes(BOOLEAN)));
+                new Signature("count", AGGREGATE, BIGINT.getTypeSignature(), BOOLEAN.getTypeSignature()));
         InternalAggregationFunction maxVarcharColumn = metadata.getAggregateFunctionImplementation(
-                metadata.resolveFunction(QualifiedName.of("max"), fromTypes(VARCHAR)));
+                new Signature("max", AGGREGATE, VARCHAR.getTypeSignature(), VARCHAR.getTypeSignature()));
 
         Optional<Integer> groupIdChannel = Optional.of(1);
         List<Integer> groupByChannels = Ints.asList(1, 2);
@@ -270,7 +271,7 @@ public class TestHashAggregationOperator
     {
         Metadata metadata = createTestMetadataManager();
         InternalAggregationFunction arrayAggColumn = metadata.getAggregateFunctionImplementation(
-                metadata.resolveFunction(QualifiedName.of("array_agg"), fromTypes(BIGINT)));
+                new Signature("array_agg", AGGREGATE, parseTypeSignature("array(bigint)"), BIGINT.getTypeSignature()));
 
         List<Integer> hashChannels = Ints.asList(1);
         RowPagesBuilder rowPagesBuilder = rowPagesBuilder(hashEnabled, hashChannels, BIGINT, BIGINT);
@@ -314,7 +315,7 @@ public class TestHashAggregationOperator
     {
         Metadata metadata = createTestMetadataManager();
         InternalAggregationFunction maxVarcharColumn = metadata.getAggregateFunctionImplementation(
-                metadata.resolveFunction(QualifiedName.of("max"), fromTypes(VARCHAR)));
+                new Signature("max", AGGREGATE, VARCHAR.getTypeSignature(), VARCHAR.getTypeSignature()));
 
         List<Integer> hashChannels = Ints.asList(1);
         RowPagesBuilder rowPagesBuilder = rowPagesBuilder(hashEnabled, hashChannels, VARCHAR, BIGINT, VARCHAR, BIGINT);
@@ -626,7 +627,7 @@ public class TestHashAggregationOperator
     {
         Metadata metadata = createTestMetadataManager();
         InternalAggregationFunction maxVarcharColumn = metadata.getAggregateFunctionImplementation(
-                metadata.resolveFunction(QualifiedName.of("max"), fromTypes(VARCHAR)));
+                new Signature("max", AGGREGATE, VARCHAR.getTypeSignature(), VARCHAR.getTypeSignature()));
 
         List<Integer> hashChannels = Ints.asList(1);
         ImmutableList<Type> types = ImmutableList.of(VARCHAR, BIGINT, VARCHAR, BIGINT);

@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static com.google.common.base.Preconditions.checkState;
 import static java.util.Objects.requireNonNull;
 
 public class FunctionCallBuilder
@@ -130,9 +131,11 @@ public class FunctionCallBuilder
 
     public FunctionCall build()
     {
+        checkState(name != null, "name was not set");
+        metadata.resolveFunction(name, TypeSignatureProvider.fromTypeSignatures(argumentTypes));
         return new FunctionCall(
                 location,
-                metadata.resolveFunction(name, TypeSignatureProvider.fromTypeSignatures(argumentTypes)).toQualifiedName(),
+                name,
                 window,
                 filter,
                 orderBy,

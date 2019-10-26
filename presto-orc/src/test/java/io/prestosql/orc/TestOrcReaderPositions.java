@@ -18,9 +18,7 @@ import com.google.common.collect.Maps;
 import io.airlift.slice.Slice;
 import io.prestosql.orc.metadata.CompressionKind;
 import io.prestosql.orc.metadata.Footer;
-import io.prestosql.orc.metadata.OrcColumnId;
 import io.prestosql.orc.metadata.statistics.IntegerStatistics;
-import io.prestosql.spi.Page;
 import io.prestosql.spi.block.Block;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -57,7 +55,6 @@ import static java.lang.Math.min;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.hadoop.hive.ql.io.orc.CompressionKind.SNAPPY;
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
@@ -77,14 +74,13 @@ public class TestOrcReaderPositions
                 assertEquals(reader.getFilePosition(), reader.getReaderPosition());
 
                 for (int i = 0; i < 5; i++) {
-                    Page page = reader.nextPage().getLoadedPage();
-                    assertEquals(page.getPositionCount(), 20);
+                    assertEquals(reader.nextBatch(), 20);
                     assertEquals(reader.getReaderPosition(), i * 20L);
                     assertEquals(reader.getFilePosition(), reader.getReaderPosition());
-                    assertCurrentBatch(page, i);
+                    assertCurrentBatch(reader, i);
                 }
 
-                assertNull(reader.nextPage());
+                assertEquals(reader.nextBatch(), -1);
                 assertEquals(reader.getReaderPosition(), 100);
                 assertEquals(reader.getFilePosition(), reader.getReaderPosition());
             }
@@ -99,11 +95,11 @@ public class TestOrcReaderPositions
             createMultiStripeFile(tempFile.getFile());
 
             // test reading second and fourth stripes
-            OrcPredicate predicate = (numberOfRows, allColumnStatistics) -> {
+            OrcPredicate predicate = (numberOfRows, statisticsByColumnIndex) -> {
                 if (numberOfRows == 100) {
                     return true;
                 }
-                IntegerStatistics stats = allColumnStatistics.get(new OrcColumnId(1)).getIntegerStatistics();
+                IntegerStatistics stats = statisticsByColumnIndex.get(0).getIntegerStatistics();
                 return ((stats.getMin() == 60) && (stats.getMax() == 117)) ||
                         ((stats.getMin() == 180) && (stats.getMax() == 237));
             };
@@ -115,21 +111,18 @@ public class TestOrcReaderPositions
                 assertEquals(reader.getReaderPosition(), 0);
 
                 // second stripe
-                Page page = reader.nextPage().getLoadedPage();
-                assertEquals(page.getPositionCount(), 20);
+                assertEquals(reader.nextBatch(), 20);
                 assertEquals(reader.getReaderPosition(), 0);
                 assertEquals(reader.getFilePosition(), 20);
-                assertCurrentBatch(page, 1);
+                assertCurrentBatch(reader, 1);
 
                 // fourth stripe
-                page = reader.nextPage().getLoadedPage();
-                assertEquals(page.getPositionCount(), 20);
+                assertEquals(reader.nextBatch(), 20);
                 assertEquals(reader.getReaderPosition(), 20);
                 assertEquals(reader.getFilePosition(), 60);
-                assertCurrentBatch(page, 3);
+                assertCurrentBatch(reader, 3);
 
-                page = reader.nextPage();
-                assertNull(page);
+                assertEquals(reader.nextBatch(), -1);
                 assertEquals(reader.getReaderPosition(), 40);
                 assertEquals(reader.getFilePosition(), 100);
             }
@@ -146,11 +139,11 @@ public class TestOrcReaderPositions
             createSequentialFile(tempFile.getFile(), rowCount);
 
             // test reading two row groups from middle of file
-            OrcPredicate predicate = (numberOfRows, allColumnStatistics) -> {
+            OrcPredicate predicate = (numberOfRows, statisticsByColumnIndex) -> {
                 if (numberOfRows == rowCount) {
                     return true;
                 }
-                IntegerStatistics stats = allColumnStatistics.get(new OrcColumnId(1)).getIntegerStatistics();
+                IntegerStatistics stats = statisticsByColumnIndex.get(0).getIntegerStatistics();
                 return (stats.getMin() == 50_000) || (stats.getMin() == 60_000);
             };
 
@@ -162,20 +155,19 @@ public class TestOrcReaderPositions
 
                 long position = 50_000;
                 while (true) {
-                    Page page = reader.nextPage();
-                    if (page == null) {
+                    int batchSize = reader.nextBatch();
+                    if (batchSize == -1) {
                         break;
                     }
-                    page = page.getLoadedPage();
 
-                    Block block = page.getBlock(0);
-                    for (int i = 0; i < block.getPositionCount(); i++) {
+                    Block block = reader.readBlock(0);
+                    for (int i = 0; i < batchSize; i++) {
                         assertEquals(BIGINT.getLong(block, i), position + i);
                     }
 
                     assertEquals(reader.getFilePosition(), position);
                     assertEquals(reader.getReaderPosition(), position);
-                    position += page.getPositionCount();
+                    position += batchSize;
                 }
 
                 assertEquals(position, 70_000);
@@ -214,15 +206,14 @@ public class TestOrcReaderPositions
                 int currentStringBytes = baseStringBytes + Integer.BYTES + Byte.BYTES;
                 int rowCountsInCurrentRowGroup = 0;
                 while (true) {
-                    Page page = reader.nextPage();
-                    if (page == null) {
+                    int batchSize = reader.nextBatch();
+                    if (batchSize == -1) {
                         break;
                     }
-                    page = page.getLoadedPage();
 
-                    rowCountsInCurrentRowGroup += page.getPositionCount();
+                    rowCountsInCurrentRowGroup += batchSize;
 
-                    Block block = page.getBlock(0);
+                    Block block = reader.readBlock(0);
                     if (MAX_BATCH_SIZE * currentStringBytes <= READER_OPTIONS.getMaxBlockSize().toBytes()) {
                         // Either we are bounded by 1024 rows per batch, or it is the last batch in the row group
                         // For the first 3 row groups, the strings are of length 300, 600, and 900 respectively
@@ -270,14 +261,13 @@ public class TestOrcReaderPositions
 
                 int rowCountsInCurrentRowGroup = 0;
                 while (true) {
-                    Page page = reader.nextPage();
-                    if (page == null) {
+                    int batchSize = reader.nextBatch();
+                    if (batchSize == -1) {
                         break;
                     }
-                    page = page.getLoadedPage();
-                    rowCountsInCurrentRowGroup += page.getPositionCount();
+                    rowCountsInCurrentRowGroup += batchSize;
 
-                    Block block = page.getBlock(0);
+                    Block block = reader.readBlock(0);
                     // 8 bytes per row; 1024 row at most given 1024 X 8B < 1MB
                     assertTrue(block.getPositionCount() == MAX_BATCH_SIZE || rowCountsInCurrentRowGroup == rowsInRowGroup);
 
@@ -333,25 +323,24 @@ public class TestOrcReaderPositions
                 int expectedBatchSize = INITIAL_BATCH_SIZE;
                 int rowCountsInCurrentRowGroup = 0;
                 while (true) {
-                    Page page = reader.nextPage();
-                    if (page == null) {
+                    int batchSize = reader.nextBatch();
+                    if (batchSize == -1) {
                         break;
                     }
-                    page = page.getLoadedPage();
 
-                    assertEquals(page.getPositionCount(), expectedBatchSize);
+                    assertEquals(batchSize, expectedBatchSize);
                     assertEquals(reader.getReaderPosition(), totalReadRows);
                     assertEquals(reader.getFilePosition(), reader.getReaderPosition());
-                    assertCurrentBatch(page, (int) reader.getReaderPosition(), page.getPositionCount());
+                    assertCurrentBatch(reader, (int) reader.getReaderPosition(), batchSize);
 
                     if (nextBatchSize > 20 - rowCountsInCurrentRowGroup) {
                         nextBatchSize *= BATCH_SIZE_GROWTH_FACTOR;
                     }
                     else {
-                        nextBatchSize = page.getPositionCount() * BATCH_SIZE_GROWTH_FACTOR;
+                        nextBatchSize = batchSize * BATCH_SIZE_GROWTH_FACTOR;
                     }
-                    rowCountsInCurrentRowGroup += page.getPositionCount();
-                    totalReadRows += page.getPositionCount();
+                    rowCountsInCurrentRowGroup += batchSize;
+                    totalReadRows += batchSize;
                     if (rowCountsInCurrentRowGroup == 20) {
                         rowCountsInCurrentRowGroup = 0;
                     }
@@ -368,17 +357,19 @@ public class TestOrcReaderPositions
         }
     }
 
-    private static void assertCurrentBatch(Page page, int rowIndex, int batchSize)
+    private static void assertCurrentBatch(OrcRecordReader reader, int rowIndex, int batchSize)
+            throws IOException
     {
-        Block block = page.getBlock(0);
+        Block block = reader.readBlock(0);
         for (int i = 0; i < batchSize; i++) {
             assertEquals(BIGINT.getLong(block, i), (rowIndex + i) * 3);
         }
     }
 
-    private static void assertCurrentBatch(Page page, int stripe)
+    private static void assertCurrentBatch(OrcRecordReader reader, int stripe)
+            throws IOException
     {
-        Block block = page.getBlock(0);
+        Block block = reader.readBlock(0);
         for (int i = 0; i < 20; i++) {
             assertEquals(BIGINT.getLong(block, i), ((stripe * 20L) + i) * 3);
         }

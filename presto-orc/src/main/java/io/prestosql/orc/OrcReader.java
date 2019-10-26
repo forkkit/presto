@@ -14,42 +14,33 @@
 package io.prestosql.orc;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
 import io.airlift.units.DataSize;
 import io.prestosql.memory.context.AggregatedMemoryContext;
-import io.prestosql.orc.metadata.ColumnMetadata;
 import io.prestosql.orc.metadata.CompressionKind;
 import io.prestosql.orc.metadata.ExceptionWrappingMetadataReader;
 import io.prestosql.orc.metadata.Footer;
 import io.prestosql.orc.metadata.Metadata;
-import io.prestosql.orc.metadata.OrcColumnId;
 import io.prestosql.orc.metadata.OrcMetadataReader;
-import io.prestosql.orc.metadata.OrcType;
-import io.prestosql.orc.metadata.OrcType.OrcTypeKind;
 import io.prestosql.orc.metadata.PostScript;
 import io.prestosql.orc.metadata.PostScript.HiveWriterVersion;
 import io.prestosql.orc.stream.OrcChunkLoader;
 import io.prestosql.orc.stream.OrcInputStream;
-import io.prestosql.spi.Page;
 import io.prestosql.spi.type.Type;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.IntStream;
 
-import static com.google.common.base.Throwables.throwIfUnchecked;
-import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.airlift.slice.SizeOf.SIZE_OF_BYTE;
 import static io.prestosql.memory.context.AggregatedMemoryContext.newSimpleAggregatedMemoryContext;
 import static io.prestosql.orc.OrcDecompressor.createOrcDecompressor;
-import static io.prestosql.orc.metadata.OrcColumnId.ROOT_COLUMN;
 import static io.prestosql.orc.metadata.PostScript.MAGIC;
 import static java.lang.Math.min;
 import static java.lang.Math.toIntExact;
@@ -76,7 +67,6 @@ public class OrcReader
     private final Optional<OrcDecompressor> decompressor;
     private final Footer footer;
     private final Metadata metadata;
-    private final OrcColumn rootColumn;
 
     private final Optional<OrcWriteValidation> writeValidation;
 
@@ -175,11 +165,9 @@ public class OrcReader
         try (InputStream footerInputStream = new OrcInputStream(OrcChunkLoader.create(orcDataSource.getId(), footerSlice, decompressor, newSimpleAggregatedMemoryContext()))) {
             this.footer = metadataReader.readFooter(hiveWriterVersion, footerInputStream);
         }
-        if (footer.getTypes().size() == 0) {
+        if (footer.getTypes().isEmpty()) {
             throw new OrcCorruptionException(orcDataSource.getId(), "File has no columns");
         }
-
-        this.rootColumn = createOrcColumn("", "", new OrcColumnId(0), footer.getTypes(), orcDataSource.getId());
 
         validateWrite(validation -> validation.getColumnNames().equals(getColumnNames()), "Unexpected column names");
         validateWrite(validation -> validation.getRowGroupMaxRowCount() == footer.getRowsInRowGroup(), "Unexpected rows in group");
@@ -192,7 +180,7 @@ public class OrcReader
 
     public List<String> getColumnNames()
     {
-        return footer.getTypes().get(ROOT_COLUMN).getFieldNames();
+        return footer.getTypes().get(0).getFieldNames();
     }
 
     public Footer getFooter()
@@ -205,11 +193,6 @@ public class OrcReader
         return metadata;
     }
 
-    public OrcColumn getRootColumn()
-    {
-        return rootColumn;
-    }
-
     public int getBufferSize()
     {
         return bufferSize;
@@ -220,43 +203,24 @@ public class OrcReader
         return compressionKind;
     }
 
-    public OrcRecordReader createRecordReader(
-            List<OrcColumn> readColumns,
-            List<Type> readTypes,
-            OrcPredicate predicate,
-            DateTimeZone hiveStorageTimeZone,
-            AggregatedMemoryContext systemMemoryUsage,
-            int initialBatchSize,
-            Function<Exception, RuntimeException> exceptionTransform)
+    public OrcRecordReader createRecordReader(Map<Integer, Type> includedColumns, OrcPredicate predicate, DateTimeZone hiveStorageTimeZone, AggregatedMemoryContext systemMemoryUsage, int initialBatchSize)
             throws OrcCorruptionException
     {
-        return createRecordReader(
-                readColumns,
-                readTypes,
-                predicate,
-                0,
-                orcDataSource.getSize(),
-                hiveStorageTimeZone,
-                systemMemoryUsage,
-                initialBatchSize,
-                exceptionTransform);
+        return createRecordReader(includedColumns, predicate, 0, orcDataSource.getSize(), hiveStorageTimeZone, systemMemoryUsage, initialBatchSize);
     }
 
     public OrcRecordReader createRecordReader(
-            List<OrcColumn> readColumns,
-            List<Type> readTypes,
+            Map<Integer, Type> includedColumns,
             OrcPredicate predicate,
             long offset,
             long length,
             DateTimeZone hiveStorageTimeZone,
             AggregatedMemoryContext systemMemoryUsage,
-            int initialBatchSize,
-            Function<Exception, RuntimeException> exceptionTransform)
+            int initialBatchSize)
             throws OrcCorruptionException
     {
         return new OrcRecordReader(
-                requireNonNull(readColumns, "readColumns is null"),
-                requireNonNull(readTypes, "readTypes is null"),
+                requireNonNull(includedColumns, "includedColumns is null"),
                 requireNonNull(predicate, "predicate is null"),
                 footer.getNumberOfRows(),
                 footer.getStripes(),
@@ -275,8 +239,7 @@ public class OrcReader
                 footer.getUserMetadata(),
                 systemMemoryUsage,
                 writeValidation,
-                initialBatchSize,
-                exceptionTransform);
+                initialBatchSize);
     }
 
     private static OrcDataSource wrapWithCacheIfTiny(OrcDataSource dataSource, DataSize maxCacheSize)
@@ -289,38 +252,6 @@ public class OrcReader
         }
         DiskRange diskRange = new DiskRange(0, toIntExact(dataSource.getSize()));
         return new CachingOrcDataSource(dataSource, desiredOffset -> diskRange);
-    }
-
-    private static OrcColumn createOrcColumn(
-            String parentStreamName,
-            String fieldName,
-            OrcColumnId columnId,
-            ColumnMetadata<OrcType> types,
-            OrcDataSourceId orcDataSourceId)
-    {
-        String path = fieldName.isEmpty() ? parentStreamName : parentStreamName + "." + fieldName;
-        OrcType orcType = types.get(columnId);
-
-        List<OrcColumn> nestedColumns = ImmutableList.of();
-        if (orcType.getOrcTypeKind() == OrcTypeKind.STRUCT) {
-            nestedColumns = IntStream.range(0, orcType.getFieldCount())
-                    .mapToObj(fieldId -> createOrcColumn(
-                            path,
-                            orcType.getFieldName(fieldId),
-                            orcType.getFieldTypeIndex(fieldId),
-                            types,
-                            orcDataSourceId))
-                    .collect(toImmutableList());
-        }
-        else if (orcType.getOrcTypeKind() == OrcTypeKind.LIST) {
-            nestedColumns = ImmutableList.of(createOrcColumn(path, "item", orcType.getFieldTypeIndex(0), types, orcDataSourceId));
-        }
-        else if (orcType.getOrcTypeKind() == OrcTypeKind.MAP) {
-            nestedColumns = ImmutableList.of(
-                    createOrcColumn(path, "key", orcType.getFieldTypeIndex(0), types, orcDataSourceId),
-                    createOrcColumn(path, "value", orcType.getFieldTypeIndex(1), types, orcDataSourceId));
-        }
-        return new OrcColumn(path, columnId, fieldName, orcType.getOrcTypeKind(), orcDataSourceId, nestedColumns);
     }
 
     /**
@@ -368,26 +299,19 @@ public class OrcReader
     static void validateFile(
             OrcWriteValidation writeValidation,
             OrcDataSource input,
-            List<Type> readTypes,
+            List<Type> types,
             DateTimeZone hiveStorageTimeZone)
             throws OrcCorruptionException
     {
+        ImmutableMap.Builder<Integer, Type> readTypes = ImmutableMap.builder();
+        for (int columnIndex = 0; columnIndex < types.size(); columnIndex++) {
+            readTypes.put(columnIndex, types.get(columnIndex));
+        }
         try {
             OrcReader orcReader = new OrcReader(input, new OrcReaderOptions(), Optional.of(writeValidation));
-            try (OrcRecordReader orcRecordReader = orcReader.createRecordReader(
-                    orcReader.getRootColumn().getNestedColumns(),
-                    readTypes,
-                    OrcPredicate.TRUE,
-                    hiveStorageTimeZone,
-                    newSimpleAggregatedMemoryContext(),
-                    INITIAL_BATCH_SIZE,
-                    exception -> {
-                        throwIfUnchecked(exception);
-                        return new RuntimeException(exception);
-                    })) {
-                for (Page page = orcRecordReader.nextPage(); page != null; page = orcRecordReader.nextPage()) {
-                    // fully load the page
-                    page.getLoadedPage();
+            try (OrcRecordReader orcRecordReader = orcReader.createRecordReader(readTypes.build(), OrcPredicate.TRUE, hiveStorageTimeZone, newSimpleAggregatedMemoryContext(), INITIAL_BATCH_SIZE)) {
+                while (orcRecordReader.nextBatch() >= 0) {
+                    // ignored
                 }
             }
         }

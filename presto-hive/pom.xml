@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.prestosql</groupId>
         <artifactId>presto-root</artifactId>
-        <version>324-SNAPSHOT</version>
+        <version>321-SNAPSHOT</version>
     </parent>
 
     <artifactId>presto-hive</artifactId>
@@ -99,11 +99,6 @@
         </dependency>
 
         <dependency>
-            <groupId>io.airlift</groupId>
-            <artifactId>units</artifactId>
-        </dependency>
-
-        <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
         </dependency>
@@ -190,11 +185,6 @@
             <artifactId>javax.inject</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-        </dependency>
-
         <!-- used by tests but also needed transitively -->
         <dependency>
             <groupId>io.airlift</groupId>
@@ -212,6 +202,12 @@
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>slice</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.airlift</groupId>
+            <artifactId>units</artifactId>
             <scope>provided</scope>
         </dependency>
 

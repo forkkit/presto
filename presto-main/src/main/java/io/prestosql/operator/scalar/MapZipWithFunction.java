@@ -16,7 +16,6 @@ package io.prestosql.operator.scalar;
 import com.google.common.collect.ImmutableList;
 import io.prestosql.metadata.BoundVariables;
 import io.prestosql.metadata.FunctionKind;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlScalarFunction;
@@ -27,7 +26,6 @@ import io.prestosql.spi.block.SingleMapBlock;
 import io.prestosql.spi.type.MapType;
 import io.prestosql.spi.type.StandardTypes;
 import io.prestosql.spi.type.Type;
-import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.spi.type.TypeSignatureParameter;
 import io.prestosql.sql.gen.lambda.LambdaFunctionInterface;
 
@@ -39,8 +37,7 @@ import static io.prestosql.metadata.Signature.typeVariable;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.ArgumentProperty.functionTypeArgumentProperty;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.ArgumentProperty.valueTypeArgumentProperty;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.NullConvention.RETURN_NULL_ON_NULL;
-import static io.prestosql.spi.type.TypeSignature.functionType;
-import static io.prestosql.spi.type.TypeSignature.mapType;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.spi.type.TypeUtils.readNativeValue;
 import static io.prestosql.spi.type.TypeUtils.writeNativeValue;
 import static io.prestosql.util.Reflection.methodHandle;
@@ -55,21 +52,32 @@ public final class MapZipWithFunction
 
     private MapZipWithFunction()
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        "map_zip_with",
-                        FunctionKind.SCALAR,
-                        ImmutableList.of(typeVariable("K"), typeVariable("V1"), typeVariable("V2"), typeVariable("V3")),
-                        ImmutableList.of(),
-                        mapType(new TypeSignature("K"), new TypeSignature("V3")),
-                        ImmutableList.of(
-                                mapType(new TypeSignature("K"), new TypeSignature("V1")),
-                                mapType(new TypeSignature("K"), new TypeSignature("V2")),
-                                functionType(new TypeSignature("K"), new TypeSignature("V1"), new TypeSignature("V2"), new TypeSignature("V3"))),
-                        false),
-                false,
-                false,
-                "merge two maps into a single map by applying the lambda function to the pair of values with the same key"));
+        super(new Signature(
+                "map_zip_with",
+                FunctionKind.SCALAR,
+                ImmutableList.of(typeVariable("K"), typeVariable("V1"), typeVariable("V2"), typeVariable("V3")),
+                ImmutableList.of(),
+                parseTypeSignature("map(K,V3)"),
+                ImmutableList.of(parseTypeSignature("map(K,V1)"), parseTypeSignature("map(K,V2)"), parseTypeSignature("function(K,V1,V2,V3)")),
+                false));
+    }
+
+    @Override
+    public boolean isHidden()
+    {
+        return false;
+    }
+
+    @Override
+    public boolean isDeterministic()
+    {
+        return false;
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "merge two maps into a single map by applying the lambda function to the pair of values with the same key";
     }
 
     @Override
@@ -82,8 +90,8 @@ public final class MapZipWithFunction
         Type outputMapType = metadata.getParameterizedType(
                 StandardTypes.MAP,
                 ImmutableList.of(
-                        TypeSignatureParameter.typeParameter(keyType.getTypeSignature()),
-                        TypeSignatureParameter.typeParameter(outputValueType.getTypeSignature())));
+                        TypeSignatureParameter.of(keyType.getTypeSignature()),
+                        TypeSignatureParameter.of(outputValueType.getTypeSignature())));
         return new ScalarFunctionImplementation(
                 false,
                 ImmutableList.of(
@@ -91,7 +99,8 @@ public final class MapZipWithFunction
                         valueTypeArgumentProperty(RETURN_NULL_ON_NULL),
                         functionTypeArgumentProperty(MapZipWithLambda.class)),
                 METHOD_HANDLE.bindTo(keyType).bindTo(inputValueType1).bindTo(inputValueType2).bindTo(outputMapType),
-                Optional.of(STATE_FACTORY.bindTo(outputMapType)));
+                Optional.of(STATE_FACTORY.bindTo(outputMapType)),
+                isDeterministic());
     }
 
     public static Object createState(MapType mapType)

@@ -16,9 +16,7 @@ package io.prestosql.operator.aggregation;
 import com.google.common.collect.ImmutableList;
 import io.airlift.bytecode.DynamicClassLoader;
 import io.prestosql.metadata.BoundVariables;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlAggregationFunction;
 import io.prestosql.operator.aggregation.AggregationMetadata.AccumulatorStateDescriptor;
 import io.prestosql.operator.aggregation.state.DoubleState;
@@ -33,7 +31,6 @@ import java.lang.invoke.MethodHandle;
 import java.util.List;
 import java.util.Optional;
 
-import static io.prestosql.metadata.FunctionKind.AGGREGATE;
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata;
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata.ParameterType.BLOCK_INDEX;
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata.ParameterType.BLOCK_INPUT_CHANNEL;
@@ -58,18 +55,17 @@ public class RealAverageAggregation
 
     protected RealAverageAggregation()
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        NAME,
-                        AGGREGATE,
-                        ImmutableList.of(),
-                        ImmutableList.of(),
-                        REAL.getTypeSignature(),
-                        ImmutableList.of(REAL.getTypeSignature()),
-                        false),
-                false,
-                true,
-                "Returns the average value of the argument"));
+        super(NAME,
+                ImmutableList.of(),
+                ImmutableList.of(),
+                REAL.getTypeSignature(),
+                ImmutableList.of(REAL.getTypeSignature()));
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "Returns the average value of the argument";
     }
 
     @Override

@@ -17,6 +17,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import io.prestosql.plugin.hive.HiveColumnHandle;
+import io.prestosql.plugin.hive.HivePartitionKey;
 import io.prestosql.spi.HostAddress;
 import io.prestosql.spi.connector.ConnectorSplit;
 import io.prestosql.spi.predicate.TupleDomain;
@@ -34,8 +36,9 @@ public class IcebergSplit
     private final long start;
     private final long length;
     private final List<HostAddress> addresses;
-    private final TupleDomain<IcebergColumnHandle> predicate;
-    private final Map<Integer, String> partitionKeys;
+    private final Map<String, Integer> nameToId;
+    private final TupleDomain<HiveColumnHandle> predicate;
+    private final List<HivePartitionKey> partitionKeys;
 
     @JsonCreator
     public IcebergSplit(
@@ -43,15 +46,17 @@ public class IcebergSplit
             @JsonProperty("start") long start,
             @JsonProperty("length") long length,
             @JsonProperty("addresses") List<HostAddress> addresses,
-            @JsonProperty("predicate") TupleDomain<IcebergColumnHandle> predicate,
-            @JsonProperty("partitionKeys") Map<Integer, String> partitionKeys)
+            @JsonProperty("nameToId") Map<String, Integer> nameToId,
+            @JsonProperty("predicate") TupleDomain<HiveColumnHandle> predicate,
+            @JsonProperty("partitionKeys") List<HivePartitionKey> partitionKeys)
     {
         this.path = requireNonNull(path, "path is null");
         this.start = start;
         this.length = length;
         this.addresses = ImmutableList.copyOf(requireNonNull(addresses, "addresses is null"));
+        this.nameToId = ImmutableMap.copyOf(requireNonNull(nameToId, "nameToId is null"));
         this.predicate = requireNonNull(predicate, "predicate is null");
-        this.partitionKeys = ImmutableMap.copyOf(requireNonNull(partitionKeys, "partitionKeys is null"));
+        this.partitionKeys = ImmutableList.copyOf(requireNonNull(partitionKeys, "partitionKeys is null"));
     }
 
     @Override
@@ -86,13 +91,19 @@ public class IcebergSplit
     }
 
     @JsonProperty
-    public TupleDomain<IcebergColumnHandle> getPredicate()
+    public Map<String, Integer> getNameToId()
+    {
+        return nameToId;
+    }
+
+    @JsonProperty
+    public TupleDomain<HiveColumnHandle> getPredicate()
     {
         return predicate;
     }
 
     @JsonProperty
-    public Map<Integer, String> getPartitionKeys()
+    public List<HivePartitionKey> getPartitionKeys()
     {
         return partitionKeys;
     }

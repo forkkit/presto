@@ -14,6 +14,7 @@
 package io.prestosql.type;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import io.airlift.slice.Slice;
 import io.airlift.slice.XxHash64;
 import io.prestosql.annotation.UsedByGeneratedCode;
@@ -51,7 +52,7 @@ import static io.prestosql.spi.function.OperatorType.SUBTRACT;
 import static io.prestosql.spi.function.OperatorType.XX_HASH_64;
 import static io.prestosql.spi.type.Decimals.encodeUnscaledValue;
 import static io.prestosql.spi.type.Decimals.longTenToNth;
-import static io.prestosql.spi.type.TypeSignatureParameter.typeVariable;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.spi.type.UnscaledDecimal128Arithmetic.divideRoundUp;
 import static io.prestosql.spi.type.UnscaledDecimal128Arithmetic.isZero;
 import static io.prestosql.spi.type.UnscaledDecimal128Arithmetic.remainder;
@@ -79,9 +80,9 @@ public final class DecimalOperators
 
     private static SqlScalarFunction decimalAddOperator()
     {
-        TypeSignature decimalLeftSignature = new TypeSignature("decimal", typeVariable("a_precision"), typeVariable("a_scale"));
-        TypeSignature decimalRightSignature = new TypeSignature("decimal", typeVariable("b_precision"), typeVariable("b_scale"));
-        TypeSignature decimalResultSignature = new TypeSignature("decimal", typeVariable("r_precision"), typeVariable("r_scale"));
+        TypeSignature decimalLeftSignature = parseTypeSignature("decimal(a_precision, a_scale)", ImmutableSet.of("a_precision", "a_scale"));
+        TypeSignature decimalRightSignature = parseTypeSignature("decimal(b_precision, b_scale)", ImmutableSet.of("b_precision", "b_scale"));
+        TypeSignature decimalResultSignature = parseTypeSignature("decimal(r_precision, r_scale)", ImmutableSet.of("r_precision", "r_scale"));
 
         Signature signature = Signature.builder()
                 .kind(SCALAR)
@@ -161,9 +162,9 @@ public final class DecimalOperators
 
     private static SqlScalarFunction decimalSubtractOperator()
     {
-        TypeSignature decimalLeftSignature = new TypeSignature("decimal", typeVariable("a_precision"), typeVariable("a_scale"));
-        TypeSignature decimalRightSignature = new TypeSignature("decimal", typeVariable("b_precision"), typeVariable("b_scale"));
-        TypeSignature decimalResultSignature = new TypeSignature("decimal", typeVariable("r_precision"), typeVariable("r_scale"));
+        TypeSignature decimalLeftSignature = parseTypeSignature("decimal(a_precision, a_scale)", ImmutableSet.of("a_precision", "a_scale"));
+        TypeSignature decimalRightSignature = parseTypeSignature("decimal(b_precision, b_scale)", ImmutableSet.of("b_precision", "b_scale"));
+        TypeSignature decimalResultSignature = parseTypeSignature("decimal(r_precision, r_scale)", ImmutableSet.of("r_precision", "r_scale"));
 
         Signature signature = Signature.builder()
                 .kind(SCALAR)
@@ -239,9 +240,9 @@ public final class DecimalOperators
 
     private static SqlScalarFunction decimalMultiplyOperator()
     {
-        TypeSignature decimalLeftSignature = new TypeSignature("decimal", typeVariable("a_precision"), typeVariable("a_scale"));
-        TypeSignature decimalRightSignature = new TypeSignature("decimal", typeVariable("b_precision"), typeVariable("b_scale"));
-        TypeSignature decimalResultSignature = new TypeSignature("decimal", typeVariable("r_precision"), typeVariable("r_scale"));
+        TypeSignature decimalLeftSignature = parseTypeSignature("decimal(a_precision, a_scale)", ImmutableSet.of("a_precision", "a_scale"));
+        TypeSignature decimalRightSignature = parseTypeSignature("decimal(b_precision, b_scale)", ImmutableSet.of("b_precision", "b_scale"));
+        TypeSignature decimalResultSignature = parseTypeSignature("decimal(r_precision, r_scale)", ImmutableSet.of("r_precision", "r_scale"));
 
         Signature signature = Signature.builder()
                 .kind(SCALAR)
@@ -300,9 +301,9 @@ public final class DecimalOperators
 
     private static SqlScalarFunction decimalDivideOperator()
     {
-        TypeSignature decimalLeftSignature = new TypeSignature("decimal", typeVariable("a_precision"), typeVariable("a_scale"));
-        TypeSignature decimalRightSignature = new TypeSignature("decimal", typeVariable("b_precision"), typeVariable("b_scale"));
-        TypeSignature decimalResultSignature = new TypeSignature("decimal", typeVariable("r_precision"), typeVariable("r_scale"));
+        TypeSignature decimalLeftSignature = parseTypeSignature("decimal(a_precision, a_scale)", ImmutableSet.of("a_precision", "a_scale"));
+        TypeSignature decimalRightSignature = parseTypeSignature("decimal(b_precision, b_scale)", ImmutableSet.of("b_precision", "b_scale"));
+        TypeSignature decimalResultSignature = parseTypeSignature("decimal(r_precision, r_scale)", ImmutableSet.of("r_precision", "r_scale"));
 
         // we extend target precision by b_scale. This is upper bound on how much division result will grow.
         // pessimistic case is a / 0.0000001
@@ -470,9 +471,9 @@ public final class DecimalOperators
 
     public static SignatureBuilder modulusSignatureBuilder()
     {
-        TypeSignature decimalLeftSignature = new TypeSignature("decimal", typeVariable("a_precision"), typeVariable("a_scale"));
-        TypeSignature decimalRightSignature = new TypeSignature("decimal", typeVariable("b_precision"), typeVariable("b_scale"));
-        TypeSignature decimalResultSignature = new TypeSignature("decimal", typeVariable("r_precision"), typeVariable("r_scale"));
+        TypeSignature decimalLeftSignature = parseTypeSignature("decimal(a_precision, a_scale)", ImmutableSet.of("a_precision", "a_scale"));
+        TypeSignature decimalRightSignature = parseTypeSignature("decimal(b_precision, b_scale)", ImmutableSet.of("b_precision", "b_scale"));
+        TypeSignature decimalResultSignature = parseTypeSignature("decimal(r_precision, r_scale)", ImmutableSet.of("r_precision", "r_scale"));
 
         return Signature.builder()
                 .longVariableConstraints(

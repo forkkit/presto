@@ -41,7 +41,6 @@ import static io.prestosql.spi.type.DoubleType.DOUBLE;
 import static io.prestosql.spi.type.VarbinaryType.VARBINARY;
 import static io.prestosql.spi.type.VarcharType.createVarcharType;
 import static io.prestosql.sql.ExpressionUtils.rewriteIdentifiersToSymbolReferences;
-import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toSqlType;
 import static io.prestosql.testing.TestingSession.testSessionBuilder;
 import static java.lang.Double.NEGATIVE_INFINITY;
 import static java.lang.Double.POSITIVE_INFINITY;
@@ -119,7 +118,7 @@ public class TestScalarStatsCalculator
         assertCalculate(
                 new FunctionCallBuilder(metadata)
                         .setName(QualifiedName.of("length"))
-                        .addArgument(createVarcharType(10), new Cast(new NullLiteral(), toSqlType(createVarcharType(10))))
+                        .addArgument(createVarcharType(10), new Cast(new NullLiteral(), "VARCHAR(10)"))
                         .build())
                 .distinctValuesCount(0.0)
                 .lowValueUnknown()
@@ -184,7 +183,7 @@ public class TestScalarStatsCalculator
                 .build();
 
         assertCalculate(
-                new Cast(new SymbolReference("a"), toSqlType(BIGINT)),
+                new Cast(new SymbolReference("a"), "bigint"),
                 inputStatistics,
                 TypeProvider.viewOf(ImmutableMap.of(new Symbol("a"), BIGINT)))
                 .lowValue(2.0)
@@ -208,7 +207,7 @@ public class TestScalarStatsCalculator
                 .build();
 
         assertCalculate(
-                new Cast(new SymbolReference("a"), toSqlType(BIGINT)),
+                new Cast(new SymbolReference("a"), "bigint"),
                 inputStatistics,
                 TypeProvider.viewOf(ImmutableMap.of(new Symbol("a"), BIGINT)))
                 .lowValue(2.0)
@@ -231,7 +230,7 @@ public class TestScalarStatsCalculator
                 .build();
 
         assertCalculate(
-                new Cast(new SymbolReference("a"), toSqlType(BIGINT)),
+                new Cast(new SymbolReference("a"), "bigint"),
                 inputStatistics,
                 TypeProvider.viewOf(ImmutableMap.of(new Symbol("a"), BIGINT)))
                 .lowValue(2.0)
@@ -255,7 +254,7 @@ public class TestScalarStatsCalculator
                 .build();
 
         assertCalculate(
-                new Cast(new SymbolReference("a"), toSqlType(DOUBLE)),
+                new Cast(new SymbolReference("a"), "double"),
                 inputStatistics,
                 TypeProvider.viewOf(ImmutableMap.of(new Symbol("a"), DOUBLE)))
                 .lowValue(2.0)
@@ -269,7 +268,7 @@ public class TestScalarStatsCalculator
     public void testCastUnknown()
     {
         assertCalculate(
-                new Cast(new SymbolReference("a"), toSqlType(BIGINT)),
+                new Cast(new SymbolReference("a"), "bigint"),
                 PlanNodeStatsEstimate.unknown(),
                 TypeProvider.viewOf(ImmutableMap.of(new Symbol("a"), BIGINT)))
                 .lowValueUnknown()

@@ -17,9 +17,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import io.airlift.bytecode.DynamicClassLoader;
 import io.prestosql.metadata.BoundVariables;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlAggregationFunction;
 import io.prestosql.operator.aggregation.AggregationMetadata.AccumulatorStateDescriptor;
 import io.prestosql.operator.aggregation.state.NullableLongState;
@@ -35,7 +33,6 @@ import java.util.Optional;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.airlift.slice.Slices.wrappedLongArray;
-import static io.prestosql.metadata.FunctionKind.AGGREGATE;
 import static io.prestosql.metadata.Signature.comparableTypeParameter;
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata;
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata.ParameterType.BLOCK_INDEX;
@@ -59,18 +56,17 @@ public class ChecksumAggregationFunction
 
     public ChecksumAggregationFunction()
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        NAME,
-                        AGGREGATE,
-                        ImmutableList.of(comparableTypeParameter("T")),
-                        ImmutableList.of(),
-                        VARBINARY.getTypeSignature(),
-                        ImmutableList.of(new TypeSignature("T")),
-                        false),
-                false,
-                true,
-                "Checksum of the given values"));
+        super(NAME,
+                ImmutableList.of(comparableTypeParameter("T")),
+                ImmutableList.of(),
+                VARBINARY.getTypeSignature(),
+                ImmutableList.of(new TypeSignature("T")));
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "Checksum of the given values";
     }
 
     @Override

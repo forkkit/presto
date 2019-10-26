@@ -30,9 +30,9 @@ import io.prestosql.spi.type.TypeSignatureParameter;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
+import static io.prestosql.spi.session.PropertyMetadata.durationProperty;
 import static io.prestosql.spi.session.PropertyMetadata.integerProperty;
 import static io.prestosql.spi.type.StandardTypes.ARRAY;
-import static io.prestosql.spi.type.VarcharType.VARCHAR;
 import static io.prestosql.spi.type.VarcharType.createUnboundedVarcharType;
 import static java.util.Locale.ENGLISH;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -138,7 +138,7 @@ public class BlackHoleConnector
                 new PropertyMetadata<>(
                         DISTRIBUTED_ON,
                         "Distribution columns",
-                        typeManager.getParameterizedType(ARRAY, ImmutableList.of(TypeSignatureParameter.typeParameter(createUnboundedVarcharType().getTypeSignature()))),
+                        typeManager.getParameterizedType(ARRAY, ImmutableList.of(TypeSignatureParameter.of(createUnboundedVarcharType().getTypeSignature()))),
                         List.class,
                         ImmutableList.of(),
                         false,
@@ -163,18 +163,5 @@ public class BlackHoleConnector
     public void shutdown()
     {
         executorService.shutdownNow();
-    }
-
-    private static PropertyMetadata<Duration> durationProperty(String name, String description, Duration defaultValue, boolean hidden)
-    {
-        return new PropertyMetadata<>(
-                name,
-                description,
-                VARCHAR,
-                Duration.class,
-                defaultValue,
-                hidden,
-                value -> Duration.valueOf((String) value),
-                Duration::toString);
     }
 }

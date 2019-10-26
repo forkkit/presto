@@ -15,8 +15,9 @@ package io.prestosql.operator.scalar;
 
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
+import io.prestosql.metadata.FunctionKind;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.Signature;
 import io.prestosql.operator.DriverYieldSignal;
 import io.prestosql.operator.project.PageProcessor;
 import io.prestosql.spi.Page;
@@ -135,10 +136,15 @@ public class BenchmarkArraySubscript
 
             ImmutableList.Builder<RowExpression> projectionsBuilder = ImmutableList.builder();
 
-            ResolvedFunction resolvedFunction = metadata.resolveOperator(SUBSCRIPT, ImmutableList.of(arrayType, BIGINT));
+            Signature signature = new Signature(
+                    "$operator$" + SUBSCRIPT.name(),
+                    FunctionKind.SCALAR,
+                    arrayType.getElementType().getTypeSignature(),
+                    arrayType.getTypeSignature(),
+                    BIGINT.getTypeSignature());
             for (int i = 0; i < arraySize; i++) {
                 projectionsBuilder.add(new CallExpression(
-                        resolvedFunction,
+                        signature,
                         arrayType.getElementType(),
                         ImmutableList.of(field(0, arrayType), constant((long) i + 1, BIGINT))));
             }

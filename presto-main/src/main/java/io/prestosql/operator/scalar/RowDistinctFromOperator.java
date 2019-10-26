@@ -17,7 +17,7 @@ import com.google.common.collect.ImmutableList;
 import io.prestosql.metadata.BoundVariables;
 import io.prestosql.metadata.FunctionInvoker;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlOperator;
 import io.prestosql.operator.scalar.ScalarFunctionImplementation.ScalarImplementationChoice;
 import io.prestosql.spi.block.Block;
@@ -63,9 +63,9 @@ public class RowDistinctFromOperator
         ImmutableList.Builder<MethodHandle> argumentMethods = ImmutableList.builder();
         Type type = boundVariables.getTypeVariable("T");
         for (Type parameterType : type.getTypeParameters()) {
-            ResolvedFunction resolvedFunction = metadata.resolveOperator(IS_DISTINCT_FROM, ImmutableList.of(parameterType, parameterType));
+            Signature signature = metadata.resolveOperator(IS_DISTINCT_FROM, ImmutableList.of(parameterType, parameterType));
             FunctionInvoker functionInvoker = metadata.getFunctionInvokerProvider().createFunctionInvoker(
-                    resolvedFunction,
+                    signature,
                     Optional.of(new InvocationConvention(
                             ImmutableList.of(NULL_FLAG, NULL_FLAG),
                             InvocationConvention.InvocationReturnConvention.FAIL_ON_NULL,
@@ -83,7 +83,8 @@ public class RowDistinctFromOperator
                                 false,
                                 ImmutableList.of(valueTypeArgumentProperty(BLOCK_AND_POSITION), valueTypeArgumentProperty(BLOCK_AND_POSITION)),
                                 METHOD_HANDLE_BLOCK_POSITION.bindTo(type).bindTo(argumentMethods.build()),
-                                Optional.empty())));
+                                Optional.empty())),
+                isDeterministic());
     }
 
     public static boolean isDistinctFrom(Type rowType, List<MethodHandle> argumentMethods, Block leftRow, boolean leftNull, Block rightRow, boolean rightNull)

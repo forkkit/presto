@@ -14,7 +14,6 @@
 package io.prestosql.operator.window;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.TypeVariableConstraint;
 import io.prestosql.spi.function.WindowFunction;
@@ -28,7 +27,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.prestosql.metadata.FunctionKind.WINDOW;
 import static io.prestosql.metadata.Signature.typeVariable;
-import static io.prestosql.operator.TypeSignatureParser.parseTypeSignature;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 
 public final class WindowAnnotationsParser
 {
@@ -51,7 +50,7 @@ public final class WindowAnnotationsParser
         }
 
         List<TypeSignature> argumentTypes = Stream.of(window.argumentTypes())
-                .map(type -> parseTypeSignature(type, ImmutableSet.of()))
+                .map(TypeSignature::parseTypeSignature)
                 .collect(toImmutableList());
 
         Signature signature = new Signature(
@@ -59,7 +58,7 @@ public final class WindowAnnotationsParser
                 WINDOW,
                 typeVariables,
                 ImmutableList.of(),
-                parseTypeSignature(window.returnType(), ImmutableSet.of()),
+                parseTypeSignature(window.returnType()),
                 argumentTypes,
                 false);
 

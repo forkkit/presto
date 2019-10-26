@@ -21,15 +21,13 @@ import io.prestosql.sql.parser.SqlParser;
 import io.prestosql.sql.planner.Symbol;
 import io.prestosql.sql.planner.TypeAnalyzer;
 import io.prestosql.sql.planner.TypeProvider;
-import io.prestosql.sql.planner.assertions.SymbolAliases;
 import io.prestosql.sql.planner.iterative.rule.test.PlanBuilder;
-import io.prestosql.sql.tree.SymbolReference;
 import org.testng.annotations.Test;
 
 import static io.prestosql.SessionTestUtils.TEST_SESSION;
 import static io.prestosql.spi.type.BigintType.BIGINT;
-import static io.prestosql.sql.ExpressionTestUtils.assertExpressionEquals;
 import static io.prestosql.sql.planner.iterative.rule.CanonicalizeExpressionRewriter.rewrite;
+import static org.testng.Assert.assertEquals;
 
 public class TestCanonicalizeExpressionRewriter
 {
@@ -109,7 +107,7 @@ public class TestCanonicalizeExpressionRewriter
 
     private static void assertRewritten(String from, String to)
     {
-        assertExpressionEquals(
+        assertEquals(
                 rewrite(
                         PlanBuilder.expression(from),
                         TEST_SESSION,
@@ -119,10 +117,6 @@ public class TestCanonicalizeExpressionRewriter
                                 .put(new Symbol("x"), BIGINT)
                                 .put(new Symbol("a"), BIGINT)
                                 .build())),
-                PlanBuilder.expression(to),
-                SymbolAliases.builder()
-                        .put("x", new SymbolReference("x"))
-                        .put("a", new SymbolReference("a"))
-                        .build());
+                PlanBuilder.expression(to));
     }
 }

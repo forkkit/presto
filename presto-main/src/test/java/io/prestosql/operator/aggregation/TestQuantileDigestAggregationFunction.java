@@ -17,13 +17,13 @@ import com.google.common.base.Joiner;
 import com.google.common.primitives.Floats;
 import io.airlift.stats.QuantileDigest;
 import io.prestosql.metadata.Metadata;
+import io.prestosql.metadata.Signature;
 import io.prestosql.operator.scalar.AbstractTestFunctions;
 import io.prestosql.spi.Page;
 import io.prestosql.spi.block.Block;
 import io.prestosql.spi.type.SqlVarbinary;
 import io.prestosql.spi.type.StandardTypes;
-import io.prestosql.spi.type.Type;
-import io.prestosql.sql.tree.QualifiedName;
+import io.prestosql.spi.type.TypeSignature;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
@@ -40,17 +40,14 @@ import static io.prestosql.block.BlockAssertions.createLongSequenceBlock;
 import static io.prestosql.block.BlockAssertions.createLongsBlock;
 import static io.prestosql.block.BlockAssertions.createRLEBlock;
 import static io.prestosql.block.BlockAssertions.createSequenceBlockOfReal;
+import static io.prestosql.metadata.FunctionKind.AGGREGATE;
 import static io.prestosql.metadata.MetadataManager.createTestMetadataManager;
 import static io.prestosql.operator.aggregation.AggregationTestUtils.assertAggregation;
 import static io.prestosql.operator.aggregation.FloatingPointBitsConverterUtil.doubleToSortableLong;
 import static io.prestosql.operator.aggregation.FloatingPointBitsConverterUtil.floatToSortableInt;
 import static io.prestosql.operator.aggregation.TestMergeQuantileDigestFunction.QDIGEST_EQUALITY;
-import static io.prestosql.spi.type.BigintType.BIGINT;
 import static io.prestosql.spi.type.BooleanType.BOOLEAN;
-import static io.prestosql.spi.type.DoubleType.DOUBLE;
-import static io.prestosql.spi.type.RealType.REAL;
-import static io.prestosql.spi.type.TypeSignature.arrayType;
-import static io.prestosql.sql.analyzer.TypeSignatureProvider.fromTypes;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static java.lang.Double.NaN;
 import static java.lang.Integer.max;
 import static java.lang.Integer.min;
@@ -164,29 +161,34 @@ public class TestQuantileDigestAggregationFunction
                 LongStream.range(-1000, 1000).toArray());
     }
 
-    private InternalAggregationFunction getAggregationFunction(Type... types)
+    private InternalAggregationFunction getAggregationFunction(String... type)
     {
-        return METADATA.getAggregateFunctionImplementation(METADATA.resolveFunction(QualifiedName.of("qdigest_agg"), fromTypes(types)));
+        TypeSignature[] typeSignatures = Arrays.stream(type).map(TypeSignature::parseTypeSignature).toArray(TypeSignature[]::new);
+        return METADATA.getAggregateFunctionImplementation(
+                new Signature("qdigest_agg",
+                        AGGREGATE,
+                        parseTypeSignature(format("qdigest(%s)", type[0])),
+                        typeSignatures));
     }
 
     private void testAggregationBigint(Block inputBlock, Block weightsBlock, double maxError, long... inputs)
     {
         // Test without weights and accuracy
         testAggregationBigints(
-                getAggregationFunction(BIGINT),
+                getAggregationFunction(StandardTypes.BIGINT),
                 new Page(inputBlock),
                 maxError,
                 inputs);
 
         // Test with weights and without accuracy
         testAggregationBigints(
-                getAggregationFunction(BIGINT, BIGINT),
+                getAggregationFunction(StandardTypes.BIGINT, StandardTypes.BIGINT),
                 new Page(inputBlock, weightsBlock),
                 maxError,
                 inputs);
         // Test with weights and accuracy
         testAggregationBigints(
-                getAggregationFunction(BIGINT, BIGINT, DOUBLE),
+                getAggregationFunction(StandardTypes.BIGINT, StandardTypes.BIGINT, StandardTypes.DOUBLE),
                 new Page(inputBlock, weightsBlock, createRLEBlock(maxError, inputBlock.getPositionCount())),
                 maxError,
                 inputs);
@@ -196,19 +198,19 @@ public class TestQuantileDigestAggregationFunction
     {
         // Test without weights and accuracy
         testAggregationReal(
-                getAggregationFunction(REAL),
+                getAggregationFunction(StandardTypes.REAL),
                 new Page(longsBlock),
                 maxError,
                 inputs);
         // Test with weights and without accuracy
         testAggregationReal(
-                getAggregationFunction(REAL, BIGINT),
+                getAggregationFunction(StandardTypes.REAL, StandardTypes.BIGINT),
                 new Page(longsBlock, weightsBlock),
                 maxError,
                 inputs);
         // Test with weights and accuracy
         testAggregationReal(
-                getAggregationFunction(REAL, BIGINT, DOUBLE),
+                getAggregationFunction(StandardTypes.REAL, StandardTypes.BIGINT, StandardTypes.DOUBLE),
                 new Page(longsBlock, weightsBlock, createRLEBlock(maxError, longsBlock.getPositionCount())),
                 maxError,
                 inputs);
@@ -218,19 +220,19 @@ public class TestQuantileDigestAggregationFunction
     {
         // Test without weights and accuracy
         testAggregationDoubles(
-                getAggregationFunction(DOUBLE),
+                getAggregationFunction(StandardTypes.DOUBLE),
                 new Page(longsBlock),
                 maxError,
                 inputs);
         // Test with weights and without accuracy
         testAggregationDoubles(
-                getAggregationFunction(DOUBLE, BIGINT),
+                getAggregationFunction(StandardTypes.DOUBLE, StandardTypes.BIGINT),
                 new Page(longsBlock, weightsBlock),
                 maxError,
                 inputs);
         // Test with weights and accuracy
         testAggregationDoubles(
-                getAggregationFunction(DOUBLE, BIGINT, DOUBLE),
+                getAggregationFunction(StandardTypes.DOUBLE, StandardTypes.BIGINT, StandardTypes.DOUBLE),
                 new Page(longsBlock, weightsBlock, createRLEBlock(maxError, longsBlock.getPositionCount())),
                 maxError,
                 inputs);
@@ -358,7 +360,7 @@ public class TestQuantileDigestAggregationFunction
                         type,
                         ARRAY_JOINER.join(boxedPercentiles),
                         ARRAY_JOINER.join(lowerBounds)),
-                METADATA.getType(arrayType(BOOLEAN.getTypeSignature())),
+                METADATA.getType(parseTypeSignature("array(boolean)")),
                 Collections.nCopies(percentiles.length, true));
 
         // Ensure that the upper bound of each item in the distribution is not less than the chosen quantiles
@@ -369,7 +371,7 @@ public class TestQuantileDigestAggregationFunction
                         type,
                         ARRAY_JOINER.join(boxedPercentiles),
                         ARRAY_JOINER.join(upperBounds)),
-                METADATA.getType(arrayType(BOOLEAN.getTypeSignature())),
+                METADATA.getType(parseTypeSignature("array(boolean)")),
                 Collections.nCopies(percentiles.length, true));
     }
 

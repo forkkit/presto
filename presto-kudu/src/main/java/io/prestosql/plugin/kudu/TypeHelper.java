@@ -48,43 +48,45 @@ public final class TypeHelper
         if (type instanceof VarcharType) {
             return org.apache.kudu.Type.STRING;
         }
-        if (type == TimestampType.TIMESTAMP) {
+        else if (type == TimestampType.TIMESTAMP) {
             return org.apache.kudu.Type.UNIXTIME_MICROS;
         }
-        if (type == BigintType.BIGINT) {
+        else if (type == BigintType.BIGINT) {
             return org.apache.kudu.Type.INT64;
         }
-        if (type == IntegerType.INTEGER) {
+        else if (type == IntegerType.INTEGER) {
             return org.apache.kudu.Type.INT32;
         }
-        if (type == SmallintType.SMALLINT) {
+        else if (type == SmallintType.SMALLINT) {
             return org.apache.kudu.Type.INT16;
         }
-        if (type == TinyintType.TINYINT) {
+        else if (type == TinyintType.TINYINT) {
             return org.apache.kudu.Type.INT8;
         }
-        if (type == RealType.REAL) {
+        else if (type == RealType.REAL) {
             return org.apache.kudu.Type.FLOAT;
         }
-        if (type == DoubleType.DOUBLE) {
+        else if (type == DoubleType.DOUBLE) {
             return org.apache.kudu.Type.DOUBLE;
         }
-        if (type == BooleanType.BOOLEAN) {
+        else if (type == BooleanType.BOOLEAN) {
             return org.apache.kudu.Type.BOOL;
         }
-        if (type instanceof VarbinaryType) {
+        else if (type instanceof VarbinaryType) {
             return org.apache.kudu.Type.BINARY;
         }
-        if (type instanceof DecimalType) {
+        else if (type instanceof DecimalType) {
             return org.apache.kudu.Type.DECIMAL;
         }
-        if (type == DateType.DATE) {
+        else if (type == DateType.DATE) {
             return org.apache.kudu.Type.STRING;
         }
-        if (type instanceof CharType) {
+        else if (type instanceof CharType) {
             return org.apache.kudu.Type.STRING;
         }
-        throw new IllegalStateException("Type mapping implemented for Presto type: " + type);
+        else {
+            throw new IllegalStateException("Type mapping implemented for Presto type: " + type);
+        }
     }
 
     public static Type fromKuduColumn(ColumnSchema column)
@@ -127,38 +129,40 @@ public final class TypeHelper
         if (type instanceof VarcharType) {
             return ((Slice) nativeValue).toStringUtf8();
         }
-        if (type == TimestampType.TIMESTAMP) {
+        else if (type == TimestampType.TIMESTAMP) {
             return ((Long) nativeValue) * 1000;
         }
-        if (type == BigintType.BIGINT) {
+        else if (type == BigintType.BIGINT) {
             return nativeValue;
         }
-        if (type == IntegerType.INTEGER) {
+        else if (type == IntegerType.INTEGER) {
             return ((Long) nativeValue).intValue();
         }
-        if (type == SmallintType.SMALLINT) {
+        else if (type == SmallintType.SMALLINT) {
             return ((Long) nativeValue).shortValue();
         }
-        if (type == TinyintType.TINYINT) {
+        else if (type == TinyintType.TINYINT) {
             return ((Long) nativeValue).byteValue();
         }
-        if (type == DoubleType.DOUBLE) {
+        else if (type == DoubleType.DOUBLE) {
             return nativeValue;
         }
-        if (type == RealType.REAL) {
+        else if (type == RealType.REAL) {
             // conversion can result in precision lost
             return intBitsToFloat(((Long) nativeValue).intValue());
         }
-        if (type == BooleanType.BOOLEAN) {
+        else if (type == BooleanType.BOOLEAN) {
             return nativeValue;
         }
-        if (type instanceof VarbinaryType) {
+        else if (type instanceof VarbinaryType) {
             return ((Slice) nativeValue).toByteBuffer();
         }
-        if (type instanceof DecimalType) {
+        else if (type instanceof DecimalType) {
             return nativeValue;
         }
-        throw new IllegalStateException("Back conversion not implemented for " + type);
+        else {
+            throw new IllegalStateException("Back conversion not implemented for " + type);
+        }
     }
 
     public static Object getObject(Type type, RowResult row, int field)
@@ -166,40 +170,44 @@ public final class TypeHelper
         if (row.isNull(field)) {
             return null;
         }
-        if (type instanceof VarcharType) {
-            return row.getString(field);
+        else {
+            if (type instanceof VarcharType) {
+                return row.getString(field);
+            }
+            else if (type == TimestampType.TIMESTAMP) {
+                return row.getLong(field) / 1000;
+            }
+            else if (type == BigintType.BIGINT) {
+                return row.getLong(field);
+            }
+            else if (type == IntegerType.INTEGER) {
+                return row.getInt(field);
+            }
+            else if (type == SmallintType.SMALLINT) {
+                return row.getShort(field);
+            }
+            else if (type == TinyintType.TINYINT) {
+                return row.getByte(field);
+            }
+            else if (type == DoubleType.DOUBLE) {
+                return row.getDouble(field);
+            }
+            else if (type == RealType.REAL) {
+                return row.getFloat(field);
+            }
+            else if (type == BooleanType.BOOLEAN) {
+                return row.getBoolean(field);
+            }
+            else if (type instanceof VarbinaryType) {
+                return Slices.wrappedBuffer(row.getBinary(field));
+            }
+            else if (type instanceof DecimalType) {
+                return row.getDecimal(field);
+            }
+            else {
+                throw new IllegalStateException("getObject not implemented for " + type);
+            }
         }
-        if (type == TimestampType.TIMESTAMP) {
-            return row.getLong(field) / 1000;
-        }
-        if (type == BigintType.BIGINT) {
-            return row.getLong(field);
-        }
-        if (type == IntegerType.INTEGER) {
-            return row.getInt(field);
-        }
-        if (type == SmallintType.SMALLINT) {
-            return row.getShort(field);
-        }
-        if (type == TinyintType.TINYINT) {
-            return row.getByte(field);
-        }
-        if (type == DoubleType.DOUBLE) {
-            return row.getDouble(field);
-        }
-        if (type == RealType.REAL) {
-            return row.getFloat(field);
-        }
-        if (type == BooleanType.BOOLEAN) {
-            return row.getBoolean(field);
-        }
-        if (type instanceof VarbinaryType) {
-            return Slices.wrappedBuffer(row.getBinary(field));
-        }
-        if (type instanceof DecimalType) {
-            return row.getDecimal(field);
-        }
-        throw new IllegalStateException("getObject not implemented for " + type);
     }
 
     public static long getLong(Type type, RowResult row, int field)
@@ -207,29 +215,33 @@ public final class TypeHelper
         if (type == TimestampType.TIMESTAMP) {
             return row.getLong(field) / 1000;
         }
-        if (type == BigintType.BIGINT) {
+        else if (type == BigintType.BIGINT) {
             return row.getLong(field);
         }
-        if (type == IntegerType.INTEGER) {
+        else if (type == IntegerType.INTEGER) {
             return row.getInt(field);
         }
-        if (type == SmallintType.SMALLINT) {
+        else if (type == SmallintType.SMALLINT) {
             return row.getShort(field);
         }
-        if (type == TinyintType.TINYINT) {
+        else if (type == TinyintType.TINYINT) {
             return row.getByte(field);
         }
-        if (type == RealType.REAL) {
+        else if (type == RealType.REAL) {
             return floatToRawIntBits(row.getFloat(field));
         }
-        if (type instanceof DecimalType) {
+        else if (type instanceof DecimalType) {
             DecimalType dtype = (DecimalType) type;
             if (dtype.isShort()) {
                 return row.getDecimal(field).unscaledValue().longValue();
             }
-            throw new IllegalStateException("getLong not supported for long decimal: " + type);
+            else {
+                throw new IllegalStateException("getLong not supported for long decimal: " + type);
+            }
         }
-        throw new IllegalStateException("getLong not implemented for " + type);
+        else {
+            throw new IllegalStateException("getLong not implemented for " + type);
+        }
     }
 
     public static boolean getBoolean(Type type, RowResult row, int field)
@@ -237,7 +249,9 @@ public final class TypeHelper
         if (type == BooleanType.BOOLEAN) {
             return row.getBoolean(field);
         }
-        throw new IllegalStateException("getBoolean not implemented for " + type);
+        else {
+            throw new IllegalStateException("getBoolean not implemented for " + type);
+        }
     }
 
     public static double getDouble(Type type, RowResult row, int field)
@@ -245,7 +259,9 @@ public final class TypeHelper
         if (type == DoubleType.DOUBLE) {
             return row.getDouble(field);
         }
-        throw new IllegalStateException("getDouble not implemented for " + type);
+        else {
+            throw new IllegalStateException("getDouble not implemented for " + type);
+        }
     }
 
     public static Slice getSlice(Type type, RowResult row, int field)
@@ -253,13 +269,15 @@ public final class TypeHelper
         if (type instanceof VarcharType) {
             return Slices.utf8Slice(row.getString(field));
         }
-        if (type instanceof VarbinaryType) {
+        else if (type instanceof VarbinaryType) {
             return Slices.wrappedBuffer(row.getBinary(field));
         }
-        if (type instanceof DecimalType) {
+        else if (type instanceof DecimalType) {
             BigDecimal dec = row.getDecimal(field);
             return Decimals.encodeScaledValue(dec);
         }
-        throw new IllegalStateException("getSlice not implemented for " + type);
+        else {
+            throw new IllegalStateException("getSlice not implemented for " + type);
+        }
     }
 }

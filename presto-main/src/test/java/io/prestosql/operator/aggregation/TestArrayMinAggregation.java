@@ -17,7 +17,6 @@ import com.google.common.collect.ImmutableList;
 import io.prestosql.spi.block.Block;
 import io.prestosql.spi.block.BlockBuilder;
 import io.prestosql.spi.type.ArrayType;
-import io.prestosql.spi.type.Type;
 
 import java.util.List;
 
@@ -54,8 +53,8 @@ public class TestArrayMinAggregation
     }
 
     @Override
-    protected List<Type> getFunctionParameterTypes()
+    protected List<String> getFunctionParameterTypes()
     {
-        return ImmutableList.of(new ArrayType(BIGINT));
+        return ImmutableList.of("array(bigint)");
     }
 }

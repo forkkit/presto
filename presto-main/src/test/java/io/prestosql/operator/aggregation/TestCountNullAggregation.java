@@ -27,7 +27,6 @@ import io.prestosql.spi.function.InputFunction;
 import io.prestosql.spi.function.OutputFunction;
 import io.prestosql.spi.function.SqlType;
 import io.prestosql.spi.type.StandardTypes;
-import io.prestosql.spi.type.Type;
 import org.testng.annotations.BeforeClass;
 
 import java.util.List;
@@ -103,8 +102,8 @@ public class TestCountNullAggregation
     }
 
     @Override
-    protected List<Type> getFunctionParameterTypes()
+    protected List<String> getFunctionParameterTypes()
     {
-        return ImmutableList.of(BIGINT);
+        return ImmutableList.of(StandardTypes.BIGINT);
     }
 }

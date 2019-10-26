@@ -16,7 +16,7 @@ package io.prestosql.sql.planner.iterative.rule;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import io.prestosql.metadata.Metadata;
+import io.prestosql.sql.planner.DeterminismEvaluator;
 import io.prestosql.sql.tree.Expression;
 import io.prestosql.sql.tree.ExpressionRewriter;
 import io.prestosql.sql.tree.ExpressionTreeRewriter;
@@ -29,18 +29,16 @@ import java.util.Set;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.prestosql.sql.ExpressionUtils.combinePredicates;
 import static io.prestosql.sql.ExpressionUtils.extractPredicates;
-import static io.prestosql.sql.planner.DeterminismEvaluator.isDeterministic;
 import static io.prestosql.sql.tree.LogicalBinaryExpression.Operator.OR;
 import static java.util.Collections.emptySet;
-import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
 public final class ExtractCommonPredicatesExpressionRewriter
 {
-    public static Expression extractCommonPredicates(Metadata metadata, Expression expression)
+    public static Expression extractCommonPredicates(Expression expression)
     {
-        return ExpressionTreeRewriter.rewriteWith(new Visitor(metadata), expression, NodeContext.ROOT_NODE);
+        return ExpressionTreeRewriter.rewriteWith(new Visitor(), expression, NodeContext.ROOT_NODE);
     }
 
     private ExtractCommonPredicatesExpressionRewriter() {}
@@ -48,13 +46,6 @@ public final class ExtractCommonPredicatesExpressionRewriter
     private static class Visitor
             extends ExpressionRewriter<NodeContext>
     {
-        private final Metadata metadata;
-
-        public Visitor(Metadata metadata)
-        {
-            this.metadata = requireNonNull(metadata, "metadata is null");
-        }
-
         @Override
         public Expression rewriteExpression(Expression node, NodeContext context, ExpressionTreeRewriter<NodeContext> treeRewriter)
         {
@@ -69,7 +60,6 @@ public final class ExtractCommonPredicatesExpressionRewriter
         public Expression rewriteLogicalBinaryExpression(LogicalBinaryExpression node, NodeContext context, ExpressionTreeRewriter<NodeContext> treeRewriter)
         {
             Expression expression = combinePredicates(
-                    metadata,
                     node.getOperator(),
                     extractPredicates(node.getOperator(), node).stream()
                             .map(subExpression -> treeRewriter.rewrite(subExpression, NodeContext.NOT_ROOT_NODE))
@@ -89,12 +79,12 @@ public final class ExtractCommonPredicatesExpressionRewriter
             return simplified;
         }
 
-        private Expression extractCommonPredicates(LogicalBinaryExpression node)
+        private static Expression extractCommonPredicates(LogicalBinaryExpression node)
         {
             List<List<Expression>> subPredicates = getSubPredicates(node);
 
             Set<Expression> commonPredicates = ImmutableSet.copyOf(subPredicates.stream()
-                    .map(this::filterDeterministicPredicates)
+                    .map(Visitor::filterDeterministicPredicates)
                     .reduce(Sets::intersection)
                     .orElse(emptySet()));
 
@@ -105,11 +95,11 @@ public final class ExtractCommonPredicatesExpressionRewriter
             LogicalBinaryExpression.Operator flippedOperator = node.getOperator().flip();
 
             List<Expression> uncorrelatedPredicates = uncorrelatedSubPredicates.stream()
-                    .map(predicate -> combinePredicates(metadata, flippedOperator, predicate))
+                    .map(predicate -> combinePredicates(flippedOperator, predicate))
                     .collect(toImmutableList());
-            Expression combinedUncorrelatedPredicates = combinePredicates(metadata, node.getOperator(), uncorrelatedPredicates);
+            Expression combinedUncorrelatedPredicates = combinePredicates(node.getOperator(), uncorrelatedPredicates);
 
-            return combinePredicates(metadata, flippedOperator, ImmutableList.<Expression>builder()
+            return combinePredicates(flippedOperator, ImmutableList.<Expression>builder()
                     .addAll(commonPredicates)
                     .add(combinedUncorrelatedPredicates)
                     .build());
@@ -132,9 +122,9 @@ public final class ExtractCommonPredicatesExpressionRewriter
          * Returns the original expression if the expression is non-deterministic or if the distribution will
          * expand the expression by too much.
          */
-        private Expression distributeIfPossible(LogicalBinaryExpression expression)
+        private static Expression distributeIfPossible(LogicalBinaryExpression expression)
         {
-            if (!isDeterministic(expression, metadata)) {
+            if (!DeterminismEvaluator.isDeterministic(expression)) {
                 // Do not distribute boolean expressions if there are any non-deterministic elements
                 // TODO: This can be optimized further if non-deterministic elements are not repeated
                 return expression;
@@ -169,17 +159,16 @@ public final class ExtractCommonPredicatesExpressionRewriter
             Set<List<Expression>> crossProduct = Sets.cartesianProduct(subPredicates);
 
             return combinePredicates(
-                    metadata,
                     expression.getOperator().flip(),
                     crossProduct.stream()
-                            .map(expressions -> combinePredicates(metadata, expression.getOperator(), expressions))
+                            .map(expressions -> combinePredicates(expression.getOperator(), expressions))
                             .collect(toImmutableList()));
         }
 
-        private Set<Expression> filterDeterministicPredicates(List<Expression> predicates)
+        private static Set<Expression> filterDeterministicPredicates(List<Expression> predicates)
         {
             return predicates.stream()
-                    .filter(expression -> isDeterministic(expression, metadata))
+                    .filter(DeterminismEvaluator::isDeterministic)
                     .collect(toSet());
         }
 

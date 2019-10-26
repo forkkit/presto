@@ -326,7 +326,7 @@ public class TestingPrestoServer
 
     public void installPlugin(Plugin plugin)
     {
-        pluginManager.installPlugin(plugin, plugin.getClass()::getClassLoader);
+        pluginManager.installPlugin(plugin);
     }
 
     public DispatchManager getDispatchManager()

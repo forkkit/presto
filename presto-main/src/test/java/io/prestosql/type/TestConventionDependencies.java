@@ -63,6 +63,7 @@ public class TestConventionDependencies
         @SqlType(StandardTypes.INTEGER)
         public static long testRegularConvention(
                 @FunctionDependency(name = "add",
+                        returnType = StandardTypes.INTEGER,
                         argumentTypes = {StandardTypes.INTEGER, StandardTypes.INTEGER},
                         convention = @Convention(arguments = {NEVER_NULL, NEVER_NULL}, result = FAIL_ON_NULL)) MethodHandle function,
                 @SqlType(StandardTypes.INTEGER) long left,
@@ -86,6 +87,7 @@ public class TestConventionDependencies
         public static long testBlockPositionConvention(
                 @FunctionDependency(
                         name = "add",
+                        returnType = StandardTypes.INTEGER,
                         argumentTypes = {StandardTypes.INTEGER, StandardTypes.INTEGER},
                         convention = @Convention(arguments = {NEVER_NULL, BLOCK_POSITION}, result = FAIL_ON_NULL)) MethodHandle function,
                 @SqlType("array(integer)") Block array)

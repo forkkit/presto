@@ -37,7 +37,7 @@ import static org.openjdk.jmh.annotations.Level.Iteration;
 
 @State(Scope.Thread)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Fork(3)
+@Fork(value = 3)
 @Warmup(iterations = 10, time = 1, timeUnit = SECONDS)
 @Measurement(iterations = 10, time = 1, timeUnit = SECONDS)
 public class BenchmarkBoxedBoolean

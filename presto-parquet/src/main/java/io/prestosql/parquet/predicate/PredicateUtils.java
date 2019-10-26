@@ -92,7 +92,8 @@ public final class PredicateUtils
             return false;
         }
 
-        return dictionaryPredicatesMatch(parquetPredicate, block, dataSource, descriptorsByPath, parquetTupleDomain);
+        Map<ColumnDescriptor, DictionaryDescriptor> dictionaries = getDictionaries(block, dataSource, descriptorsByPath, parquetTupleDomain);
+        return parquetPredicate.matches(dictionaries);
     }
 
     private static Map<ColumnDescriptor, Statistics<?>> getStatistics(BlockMetaData blockMetadata, Map<List<String>, RichColumnDescriptor> descriptorsByPath)
@@ -110,22 +111,23 @@ public final class PredicateUtils
         return statistics.build();
     }
 
-    private static boolean dictionaryPredicatesMatch(Predicate parquetPredicate, BlockMetaData blockMetadata, ParquetDataSource dataSource, Map<List<String>, RichColumnDescriptor> descriptorsByPath, TupleDomain<ColumnDescriptor> parquetTupleDomain)
+    private static Map<ColumnDescriptor, DictionaryDescriptor> getDictionaries(BlockMetaData blockMetadata, ParquetDataSource dataSource, Map<List<String>, RichColumnDescriptor> descriptorsByPath, TupleDomain<ColumnDescriptor> parquetTupleDomain)
     {
+        ImmutableMap.Builder<ColumnDescriptor, DictionaryDescriptor> dictionaries = ImmutableMap.builder();
         for (ColumnChunkMetaData columnMetaData : blockMetadata.getColumns()) {
             RichColumnDescriptor descriptor = descriptorsByPath.get(Arrays.asList(columnMetaData.getPath().toArray()));
             if (descriptor != null) {
                 if (isOnlyDictionaryEncodingPages(columnMetaData) && isColumnPredicate(descriptor, parquetTupleDomain)) {
-                    byte[] buffer = new byte[toIntExact(columnMetaData.getTotalSize())];
+                    int totalSize = toIntExact(columnMetaData.getTotalSize());
+                    byte[] buffer = new byte[totalSize];
                     dataSource.readFully(columnMetaData.getStartingPos(), buffer);
-                    //  Early abort, predicate already filters block so no more dictionaries need be read
-                    if (!parquetPredicate.matches(new DictionaryDescriptor(descriptor, readDictionaryPage(buffer, columnMetaData.getCodec())))) {
-                        return false;
-                    }
+                    Optional<DictionaryPage> dictionaryPage = readDictionaryPage(buffer, columnMetaData.getCodec());
+                    dictionaries.put(descriptor, new DictionaryDescriptor(descriptor, dictionaryPage));
+                    break;
                 }
             }
         }
-        return true;
+        return dictionaries.build();
     }
 
     private static Optional<DictionaryPage> readDictionaryPage(byte[] data, CompressionCodecName codecName)
@@ -153,7 +155,7 @@ public final class PredicateUtils
     private static boolean isColumnPredicate(ColumnDescriptor columnDescriptor, TupleDomain<ColumnDescriptor> parquetTupleDomain)
     {
         verify(parquetTupleDomain.getDomains().isPresent(), "parquetTupleDomain is empty");
-        return parquetTupleDomain.getDomains().get().containsKey(columnDescriptor);
+        return parquetTupleDomain.getDomains().get().keySet().contains(columnDescriptor);
     }
 
     @VisibleForTesting

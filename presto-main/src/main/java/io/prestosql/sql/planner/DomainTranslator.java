@@ -18,8 +18,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.PeekingIterator;
 import io.prestosql.Session;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.OperatorNotFoundException;
-import io.prestosql.metadata.ResolvedFunction;
+import io.prestosql.metadata.Signature;
+import io.prestosql.spi.PrestoException;
 import io.prestosql.spi.block.Block;
 import io.prestosql.spi.predicate.DiscreteValues;
 import io.prestosql.spi.predicate.Domain;
@@ -64,6 +64,8 @@ import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static com.google.common.collect.Iterators.peekingIterator;
+import static io.prestosql.metadata.Signature.internalOperator;
+import static io.prestosql.spi.StandardErrorCode.FUNCTION_IMPLEMENTATION_MISSING;
 import static io.prestosql.spi.function.OperatorType.SATURATED_FLOOR_CAST;
 import static io.prestosql.sql.ExpressionUtils.and;
 import static io.prestosql.sql.ExpressionUtils.combineConjuncts;
@@ -83,13 +85,11 @@ import static java.util.stream.Collectors.toList;
 
 public final class DomainTranslator
 {
-    private final Metadata metadata;
     private final LiteralEncoder literalEncoder;
 
-    public DomainTranslator(Metadata metadata)
+    public DomainTranslator(LiteralEncoder literalEncoder)
     {
-        this.metadata = requireNonNull(metadata, "metadata is null");
-        this.literalEncoder = new LiteralEncoder(metadata);
+        this.literalEncoder = requireNonNull(literalEncoder, "literalEncoder is null");
     }
 
     public Expression toPredicate(TupleDomain<Symbol> tupleDomain)
@@ -101,7 +101,7 @@ public final class DomainTranslator
         Map<Symbol, Domain> domains = tupleDomain.getDomains().get();
         return domains.entrySet().stream()
                 .map(entry -> toPredicate(entry.getValue(), entry.getKey().toSymbolReference()))
-                .collect(collectingAndThen(toImmutableList(), expressions -> ExpressionUtils.combineConjuncts(metadata, expressions)));
+                .collect(collectingAndThen(toImmutableList(), ExpressionUtils::combineConjuncts));
     }
 
     private Expression toPredicate(Domain domain, SymbolReference reference)
@@ -128,7 +128,7 @@ public final class DomainTranslator
             disjuncts.add(new IsNullPredicate(reference));
         }
 
-        return combineDisjunctsWithDefault(metadata, disjuncts, TRUE_LITERAL);
+        return combineDisjunctsWithDefault(disjuncts, TRUE_LITERAL);
     }
 
     private Expression processRange(Type type, Range range, SymbolReference reference)
@@ -174,7 +174,7 @@ public final class DomainTranslator
         }
         // If rangeConjuncts is null, then the range was ALL, which should already have been checked for
         checkState(!rangeConjuncts.isEmpty());
-        return combineConjuncts(metadata, rangeConjuncts);
+        return combineConjuncts(rangeConjuncts);
     }
 
     private Expression combineRangeWithExcludedPoints(Type type, SymbolReference reference, Range range, List<Expression> excludedPoints)
@@ -188,7 +188,7 @@ public final class DomainTranslator
             excludedPointsExpression = new ComparisonExpression(NOT_EQUAL, reference, getOnlyElement(excludedPoints));
         }
 
-        return combineConjuncts(metadata, processRange(type, range, reference), excludedPointsExpression);
+        return combineConjuncts(processRange(type, range, reference), excludedPointsExpression);
     }
 
     private List<Expression> extractDisjuncts(Type type, Ranges ranges, SymbolReference reference)
@@ -343,7 +343,7 @@ public final class DomainTranslator
                 case AND:
                     return new ExtractionResult(
                             leftTupleDomain.intersect(rightTupleDomain),
-                            combineConjuncts(metadata, leftResult.getRemainingExpression(), rightResult.getRemainingExpression()));
+                            combineConjuncts(leftResult.getRemainingExpression(), rightResult.getRemainingExpression()));
 
                 case OR:
                     TupleDomain<Symbol> columnUnionedTupleDomain = TupleDomain.columnWiseUnion(leftTupleDomain, rightTupleDomain);
@@ -357,7 +357,7 @@ public final class DomainTranslator
 
                     // We can only make inferences if the remaining expressions on both side are equal and deterministic
                     if (leftResult.getRemainingExpression().equals(rightResult.getRemainingExpression()) &&
-                            DeterminismEvaluator.isDeterministic(leftResult.getRemainingExpression(), metadata)) {
+                            DeterminismEvaluator.isDeterministic(leftResult.getRemainingExpression())) {
                         // The column-wise union is equivalent to the strict union if
                         // 1) If both TupleDomains consist of the same exact single column (e.g. left TupleDomain => (a > 0), right TupleDomain => (a < 10))
                         // 2) If one TupleDomain is a superset of the other (e.g. left TupleDomain => (a > 0, b > 0 && b < 10), right TupleDomain => (a > 5, b = 5))
@@ -661,19 +661,24 @@ public final class DomainTranslator
                     .map((operator) -> functionInvoker.invoke(operator, session.toConnectorSession(), value));
         }
 
-        private Optional<ResolvedFunction> getSaturatedFloorCastOperator(Type fromType, Type toType)
+        private Optional<Signature> getSaturatedFloorCastOperator(Type fromType, Type toType)
         {
+            Signature signature = internalOperator(SATURATED_FLOOR_CAST, toType, ImmutableList.of(fromType));
             try {
-                return Optional.of(metadata.getCoercion(SATURATED_FLOOR_CAST, fromType, toType));
+                metadata.getScalarFunctionImplementation(signature);
+                return Optional.of(signature);
             }
-            catch (OperatorNotFoundException e) {
-                return Optional.empty();
+            catch (PrestoException e) {
+                if (e.getErrorCode().getCode() == FUNCTION_IMPLEMENTATION_MISSING.toErrorCode().getCode()) {
+                    return Optional.empty();
+                }
+                throw e;
             }
         }
 
         private int compareOriginalValueToCoerced(Type originalValueType, Object originalValue, Type coercedValueType, Object coercedValue)
         {
-            ResolvedFunction castToOriginalTypeOperator = metadata.getCoercion(coercedValueType, originalValueType);
+            Signature castToOriginalTypeOperator = metadata.getCoercion(coercedValueType, originalValueType);
             Object coercedValueInOriginalType = functionInvoker.invoke(castToOriginalTypeOperator, session.toConnectorSession(), coercedValue);
             Block originalValueBlock = Utils.nativeValueToBlock(originalValueType, originalValue);
             Block coercedValueBlock = Utils.nativeValueToBlock(originalValueType, coercedValueInOriginalType);

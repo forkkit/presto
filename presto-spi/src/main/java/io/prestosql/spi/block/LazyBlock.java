@@ -16,32 +16,24 @@ package io.prestosql.spi.block;
 import io.airlift.slice.Slice;
 import org.openjdk.jol.info.ClassLayout;
 
-import javax.annotation.Nullable;
-import javax.annotation.concurrent.NotThreadSafe;
-
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
-import static io.prestosql.spi.block.BlockUtil.checkArrayRange;
-import static io.prestosql.spi.block.BlockUtil.checkValidRegion;
-import static java.util.Collections.singletonList;
 import static java.util.Objects.requireNonNull;
 
-@NotThreadSafe
 public class LazyBlock
         implements Block
 {
-    private static final int INSTANCE_SIZE = ClassLayout.parseClass(LazyBlock.class).instanceSize() + ClassLayout.parseClass(LazyData.class).instanceSize();
+    private static final int INSTANCE_SIZE = ClassLayout.parseClass(LazyBlock.class).instanceSize();
 
     private final int positionCount;
-    private final LazyData lazyData;
+    private LazyBlockLoader<LazyBlock> loader;
 
-    public LazyBlock(int positionCount, LazyBlockLoader loader)
+    private Block block;
+
+    public LazyBlock(int positionCount, LazyBlockLoader<LazyBlock> loader)
     {
         this.positionCount = positionCount;
-        this.lazyData = new LazyData(loader);
+        this.loader = requireNonNull(loader, "loader is null");
     }
 
     @Override
@@ -53,56 +45,64 @@ public class LazyBlock
     @Override
     public int getSliceLength(int position)
     {
-        return getBlock().getSliceLength(position);
+        assureLoaded();
+        return block.getSliceLength(position);
     }
 
     @Override
     public byte getByte(int position, int offset)
     {
-        return getBlock().getByte(position, offset);
+        assureLoaded();
+        return block.getByte(position, offset);
     }
 
     @Override
     public short getShort(int position, int offset)
     {
-        return getBlock().getShort(position, offset);
+        assureLoaded();
+        return block.getShort(position, offset);
     }
 
     @Override
     public int getInt(int position, int offset)
     {
-        return getBlock().getInt(position, offset);
+        assureLoaded();
+        return block.getInt(position, offset);
     }
 
     @Override
     public long getLong(int position, int offset)
     {
-        return getBlock().getLong(position, offset);
+        assureLoaded();
+        return block.getLong(position, offset);
     }
 
     @Override
     public Slice getSlice(int position, int offset, int length)
     {
-        return getBlock().getSlice(position, offset, length);
+        assureLoaded();
+        return block.getSlice(position, offset, length);
     }
 
     @Override
     public <T> T getObject(int position, Class<T> clazz)
     {
-        return getBlock().getObject(position, clazz);
+        assureLoaded();
+        return block.getObject(position, clazz);
     }
 
     @Override
     public boolean bytesEqual(int position, int offset, Slice otherSlice, int otherOffset, int length)
     {
-        return getBlock().bytesEqual(position, offset, otherSlice, otherOffset, length);
+        assureLoaded();
+        return block.bytesEqual(position, offset, otherSlice, otherOffset, length);
     }
 
     @Override
     public int bytesCompare(int position, int offset, int length, Slice otherSlice, int otherOffset, int otherLength)
     {
-        return getBlock().bytesCompare(
-                position,
+        assureLoaded();
+        return block.bytesCompare(position,
                 offset,
                 length,
                 otherSlice,
@@ -113,20 +113,22 @@ public class LazyBlock
     @Override
     public void writeBytesTo(int position, int offset, int length, BlockBuilder blockBuilder)
     {
-        getBlock().writeBytesTo(position, offset, length, blockBuilder);
+        assureLoaded();
+        block.writeBytesTo(position, offset, length, blockBuilder);
     }
 
     @Override
     public void writePositionTo(int position, BlockBuilder blockBuilder)
     {
-        getBlock().writePositionTo(position, blockBuilder);
+        assureLoaded();
+        block.writePositionTo(position, blockBuilder);
     }
 
     @Override
     public boolean equals(int position, int offset, Block otherBlock, int otherPosition, int otherOffset, int length)
     {
-        return getBlock().equals(
-                position,
+        assureLoaded();
+        return block.equals(position,
                 offset,
                 otherBlock,
                 otherPosition,
@@ -137,14 +139,15 @@ public class LazyBlock
     @Override
     public long hash(int position, int offset, int length)
     {
-        return getBlock().hash(position, offset, length);
+        assureLoaded();
+        return block.hash(position, offset, length);
     }
 
     @Override
     public int compareTo(int leftPosition, int leftOffset, int leftLength, Block rightBlock, int rightPosition, int rightOffset, int rightLength)
     {
-        return getBlock().compareTo(
-                leftPosition,
+        assureLoaded();
+        return block.compareTo(leftPosition,
                 leftOffset,
                 leftLength,
                 rightBlock,
@@ -156,270 +159,139 @@ public class LazyBlock
     @Override
     public Block getSingleValueBlock(int position)
     {
-        return getBlock().getSingleValueBlock(position);
+        assureLoaded();
+        return block.getSingleValueBlock(position);
     }
 
     @Override
     public long getSizeInBytes()
     {
-        if (!isLoaded()) {
-            return 0;
-        }
-        return getBlock().getSizeInBytes();
+        assureLoaded();
+        return block.getSizeInBytes();
     }
 
     @Override
     public long getRegionSizeInBytes(int position, int length)
     {
-        if (!isLoaded()) {
-            return 0;
-        }
-        return getBlock().getRegionSizeInBytes(position, length);
+        assureLoaded();
+        return block.getRegionSizeInBytes(position, length);
     }
 
     @Override
     public long getPositionsSizeInBytes(boolean[] positions)
     {
-        if (!isLoaded()) {
-            return 0;
-        }
-        return getBlock().getPositionsSizeInBytes(positions);
+        assureLoaded();
+        return block.getPositionsSizeInBytes(positions);
     }
 
     @Override
     public long getRetainedSizeInBytes()
     {
-        if (!isLoaded()) {
-            return INSTANCE_SIZE;
-        }
-        return INSTANCE_SIZE + getBlock().getRetainedSizeInBytes();
+        assureLoaded();
+        return INSTANCE_SIZE + block.getRetainedSizeInBytes();
     }
 
     @Override
     public long getEstimatedDataSizeForStats(int position)
     {
-        return getBlock().getEstimatedDataSizeForStats(position);
+        assureLoaded();
+        return block.getEstimatedDataSizeForStats(position);
     }
 
     @Override
     public void retainedBytesForEachPart(BiConsumer<Object, Long> consumer)
     {
-        getBlock().retainedBytesForEachPart(consumer);
+        assureLoaded();
+        block.retainedBytesForEachPart(consumer);
         consumer.accept(this, (long) INSTANCE_SIZE);
     }
 
     @Override
     public String getEncodingName()
     {
+        assureLoaded();
         return LazyBlockEncoding.NAME;
     }
 
     @Override
     public Block getPositions(int[] positions, int offset, int length)
     {
-        if (isLoaded()) {
-            return getBlock().getPositions(positions, offset, length);
-        }
-        checkArrayRange(positions, offset, length);
-        return new LazyBlock(length, new PositionLazyBlockLoader(lazyData, positions, offset, length));
+        assureLoaded();
+        return block.getPositions(positions, offset, length);
     }
 
     @Override
     public Block copyPositions(int[] positions, int offset, int length)
     {
-        return getBlock().copyPositions(positions, offset, length);
+        assureLoaded();
+        return block.copyPositions(positions, offset, length);
     }
 
     @Override
     public Block getRegion(int positionOffset, int length)
     {
-        if (isLoaded()) {
-            return getBlock().getRegion(positionOffset, length);
-        }
-        checkValidRegion(getPositionCount(), positionOffset, length);
-        return new LazyBlock(length, new RegionLazyBlockLoader(lazyData, positionOffset, length));
+        assureLoaded();
+        return block.getRegion(positionOffset, length);
     }
 
     @Override
     public Block copyRegion(int position, int length)
     {
-        return getBlock().copyRegion(position, length);
+        assureLoaded();
+        return block.copyRegion(position, length);
     }
 
     @Override
     public boolean isNull(int position)
     {
-        return getBlock().isNull(position);
-    }
-
-    @Override
-    public final List<Block> getChildren()
-    {
-        return singletonList(getBlock());
+        assureLoaded();
+        return block.isNull(position);
     }
 
     public Block getBlock()
     {
-        return lazyData.getBlock();
+        assureLoaded();
+        return block;
+    }
+
+    public void setBlock(Block block)
+    {
+        if (this.block != null) {
+            throw new IllegalStateException("block already set");
+        }
+        this.block = requireNonNull(block, "block is null");
     }
 
     @Override
     public boolean isLoaded()
     {
-        return lazyData.isLoaded();
+        return block != null && block.isLoaded();
     }
 
     @Override
     public Block getLoadedBlock()
     {
-        return lazyData.getFullyLoadedBlock();
+        assureLoaded();
+        block = block.getLoadedBlock();
+        return block;
     }
 
-    public static void listenForLoads(Block block, Consumer<Block> listener)
+    private void assureLoaded()
     {
-        requireNonNull(block, "block is null");
-        requireNonNull(listener, "listener is null");
+        if (block != null) {
+            return;
+        }
+        loader.load(this);
 
-        LazyData.addListenersRecursive(block, singletonList(listener));
-    }
-
-    private static class RegionLazyBlockLoader
-            implements LazyBlockLoader
-    {
-        private final LazyData delegate;
-        private final int positionOffset;
-        private final int length;
-
-        public RegionLazyBlockLoader(LazyData delegate, int positionOffset, int length)
-        {
-            this.delegate = requireNonNull(delegate, "delegate is null");
-            this.positionOffset = positionOffset;
-            this.length = length;
+        while (block instanceof LazyBlock) {
+            block = ((LazyBlock) block).getBlock();
         }
 
-        @Override
-        public Block load()
-        {
-            return delegate.getBlock().getRegion(positionOffset, length);
-        }
-    }
-
-    private static class PositionLazyBlockLoader
-            implements LazyBlockLoader
-    {
-        private final LazyData delegate;
-        private final int[] positions;
-        private final int offset;
-        private final int length;
-
-        public PositionLazyBlockLoader(LazyData delegate, int[] positions, int offset, int length)
-        {
-            this.delegate = requireNonNull(delegate, "delegate is null");
-            this.positions = requireNonNull(positions, "positions is null");
-            this.offset = offset;
-            this.length = length;
+        if (block == null) {
+            throw new IllegalArgumentException("Lazy block loader did not load this block");
         }
 
-        @Override
-        public Block load()
-        {
-            return delegate.getBlock().getPositions(positions, offset, length);
-        }
-    }
-
-    private static class LazyData
-    {
-        @Nullable
-        private LazyBlockLoader loader;
-        @Nullable
-        private Block block;
-        @Nullable
-        private List<Consumer<Block>> listeners;
-
-        public LazyData(LazyBlockLoader loader)
-        {
-            this.loader = requireNonNull(loader, "loader is null");
-        }
-
-        public boolean isLoaded()
-        {
-            return block != null && block.isLoaded();
-        }
-
-        public Block getBlock()
-        {
-            load(false);
-            return block;
-        }
-
-        public Block getFullyLoadedBlock()
-        {
-            load(true);
-            return block;
-        }
-
-        private void addListeners(List<Consumer<Block>> listeners)
-        {
-            if (isLoaded()) {
-                throw new IllegalStateException("Block is already loaded");
-            }
-            if (this.listeners == null) {
-                this.listeners = new ArrayList<>();
-            }
-            this.listeners.addAll(listeners);
-        }
-
-        private void load(boolean recursive)
-        {
-            if (loader == null) {
-                return;
-            }
-
-            block = requireNonNull(loader.load(), "loader returned null");
-
-            if (recursive) {
-                block = block.getLoadedBlock();
-            }
-            else {
-                // load and remove directly nested lazy blocks
-                while (block instanceof LazyBlock) {
-                    block = ((LazyBlock) block).getBlock();
-                }
-            }
-
-            // clear reference to loader to free resources, since load was successful
-            loader = null;
-
-            // notify listeners
-            List<Consumer<Block>> listeners = this.listeners;
-            this.listeners = null;
-            if (listeners != null) {
-                listeners.forEach(listener -> listener.accept(block));
-
-                // add listeners to unloaded child blocks
-                if (!recursive) {
-                    addListenersRecursive(block, listeners);
-                }
-            }
-        }
-
-        /**
-         * If block is unloaded, add the listeners; otherwise call this method on child blocks
-         */
-        @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
-        private static void addListenersRecursive(Block block, List<Consumer<Block>> listeners)
-        {
-            if (block instanceof LazyBlock) {
-                LazyData lazyData = ((LazyBlock) block).lazyData;
-                if (!lazyData.isLoaded()) {
-                    lazyData.addListeners(listeners);
-                    return;
-                }
-            }
-
-            for (Block child : block.getChildren()) {
-                addListenersRecursive(child, listeners);
-            }
-        }
+        // clear reference to loader to free resources, since load was successful
+        loader = null;
     }
 }

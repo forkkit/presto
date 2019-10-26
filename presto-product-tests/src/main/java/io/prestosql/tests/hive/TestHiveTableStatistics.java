@@ -201,8 +201,8 @@ public class TestHiveTableStatistics
         onHive().executeQuery("ANALYZE TABLE " + tableNameInDatabase + " COMPUTE STATISTICS FOR COLUMNS");
 
         assertThat(query(showStatsWholeTable)).containsOnly(
-                row("n_nationkey", null, anyOf(19., 25.), 0.0, null, "0", "24"),
-                row("n_name", 177.0, anyOf(24., 25.), 0.0, null, null, null),
+                row("n_nationkey", null, 19.0, 0.0, null, "0", "24"),
+                row("n_name", 177.0, 24.0, 0.0, null, null, null),
                 row("n_regionkey", null, 5.0, 0.0, null, "0", "4"),
                 row("n_comment", 1857.0, 25.0, 0.0, null, null, null),
                 row(null, null, null, null, 25.0, null, null));
@@ -328,7 +328,7 @@ public class TestHiveTableStatistics
                 row(null, null, null, null, 5.0, null, null));
 
         assertThat(query(showStatsPartitionTwo)).containsOnly(
-                row("p_nationkey", null, anyOf(4., 5.), 0.0, null, "8", "21"),
+                row("p_nationkey", null, 4.0, 0.0, null, "8", "21"),
                 row("p_name", 31.0, 5.0, 0.0, null, null, null),
                 row("p_regionkey", null, 1.0, 0.0, null, "2", "2"),
                 row("p_comment", 351.0, 5.0, 0.0, null, null, null),
@@ -455,7 +455,7 @@ public class TestHiveTableStatistics
                 row(null, null, null, null, 5.0, null, null));
 
         assertThat(query(showStatsPartitionTwo)).containsOnly(
-                row("p_nationkey", null, anyOf(4., 5.), 0.0, null, "8", "21"),
+                row("p_nationkey", null, 4.0, 0.0, null, "8", "21"),
                 row("p_name", 31.0, 5.0, 0.0, null, null, null),
                 row("p_regionkey", 20.0, 1.0, 0.0, null, null, null),
                 row("p_comment", 351.0, 5.0, 0.0, null, null, null),
@@ -463,7 +463,7 @@ public class TestHiveTableStatistics
     }
 
     // This covers also stats calculation for unpartitioned table
-    @Test(groups = SKIP_ON_CDH) // skip on cdh due to no support for date column and stats
+    @Test(groups = {SKIP_ON_CDH}) // skip on cdh due to no support for date column and stats
     @Requires(AllTypesTable.class)
     public void testStatisticsForAllDataTypes()
     {
@@ -511,7 +511,7 @@ public class TestHiveTableStatistics
                 row(null, null, null, null, 2.0, null, null));
     }
 
-    @Test(groups = SKIP_ON_CDH) // skip on cdh due to no support for date column and stats
+    @Test(groups = {SKIP_ON_CDH}) // skip on cdh due to no support for date column and stats
     @Requires(AllTypesTable.class)
     public void testStatisticsForAllDataTypesNoData()
     {
@@ -558,7 +558,7 @@ public class TestHiveTableStatistics
                 row(null, null, null, null, 0.0, null, null));
     }
 
-    @Test(groups = SKIP_ON_CDH) // skip on cdh due to no support for date column and stats
+    @Test(groups = {SKIP_ON_CDH}) // skip on cdh due to no support for date column and stats
     @Requires(AllTypesTable.class)
     public void testStatisticsForAllDataTypesOnlyNulls()
     {
@@ -836,7 +836,7 @@ public class TestHiveTableStatistics
     }
 
     // This covers also stats calculation for unpartitioned table
-    @Test(groups = SKIP_ON_CDH) // skip on cdh due to no support for date column and stats
+    @Test(groups = {SKIP_ON_CDH}) // skip on cdh due to no support for date column and stats
     @Requires(AllTypesTable.class)
     public void testAnalyzeForAllDataTypes()
     {
@@ -882,7 +882,7 @@ public class TestHiveTableStatistics
                 row(null, null, null, null, 2.0, null, null));
     }
 
-    @Test(groups = SKIP_ON_CDH) // skip on cdh due to no support for date column and stats
+    @Test(groups = {SKIP_ON_CDH}) // skip on cdh due to no support for date column and stats
     @Requires(AllTypesTable.class)
     public void testAnalyzeForAllDataTypesNoData()
     {
@@ -927,7 +927,7 @@ public class TestHiveTableStatistics
                 row(null, null, null, null, 0.0, null, null));
     }
 
-    @Test(groups = SKIP_ON_CDH) // skip on cdh due to no support for date column and stats
+    @Test(groups = {SKIP_ON_CDH}) // skip on cdh due to no support for date column and stats
     @Requires(AllTypesTable.class)
     public void testAnalyzeForAllDataTypesOnlyNulls()
     {

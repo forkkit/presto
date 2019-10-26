@@ -16,7 +16,6 @@ package io.prestosql.sql.planner.optimizations;
 import com.google.common.collect.ImmutableList;
 import io.prestosql.Session;
 import io.prestosql.execution.warnings.WarningCollector;
-import io.prestosql.metadata.FunctionId;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.metadata.Signature;
 import io.prestosql.spi.predicate.Domain;
@@ -25,6 +24,7 @@ import io.prestosql.spi.predicate.TupleDomain;
 import io.prestosql.spi.predicate.ValueSet;
 import io.prestosql.sql.ExpressionUtils;
 import io.prestosql.sql.planner.DomainTranslator;
+import io.prestosql.sql.planner.LiteralEncoder;
 import io.prestosql.sql.planner.PlanNodeIdAllocator;
 import io.prestosql.sql.planner.Symbol;
 import io.prestosql.sql.planner.SymbolAllocator;
@@ -38,7 +38,6 @@ import io.prestosql.sql.planner.plan.TopNRowNumberNode;
 import io.prestosql.sql.planner.plan.WindowNode;
 import io.prestosql.sql.tree.BooleanLiteral;
 import io.prestosql.sql.tree.Expression;
-import io.prestosql.sql.tree.QualifiedName;
 
 import java.util.Map;
 import java.util.Optional;
@@ -69,7 +68,7 @@ public class WindowFilterPushDown
     public WindowFilterPushDown(Metadata metadata)
     {
         this.metadata = requireNonNull(metadata, "metadata is null");
-        this.domainTranslator = new DomainTranslator(metadata);
+        this.domainTranslator = new DomainTranslator(new LiteralEncoder(metadata));
     }
 
     @Override
@@ -92,7 +91,6 @@ public class WindowFilterPushDown
         private final DomainTranslator domainTranslator;
         private final Session session;
         private final TypeProvider types;
-        private final FunctionId rowNumberFunctionId;
 
         private Rewriter(PlanNodeIdAllocator idAllocator, Metadata metadata, DomainTranslator domainTranslator, Session session, TypeProvider types)
         {
@@ -101,7 +99,6 @@ public class WindowFilterPushDown
             this.domainTranslator = requireNonNull(domainTranslator, "domainTranslator is null");
             this.session = requireNonNull(session, "session is null");
             this.types = requireNonNull(types, "types is null");
-            rowNumberFunctionId = metadata.resolveFunction(QualifiedName.of("row_number"), ImmutableList.of()).getFunctionId();
         }
 
         @Override
@@ -201,7 +198,6 @@ public class WindowFilterPushDown
             // Construct a new predicate
             TupleDomain<Symbol> newTupleDomain = TupleDomain.withColumnDomains(newDomains);
             Expression newPredicate = ExpressionUtils.combineConjuncts(
-                    metadata,
                     extractionResult.getRemainingExpression(),
                     domainTranslator.toPredicate(newTupleDomain));
 
@@ -272,18 +268,23 @@ public class WindowFilterPushDown
                     Optional.empty());
         }
 
-        private boolean canReplaceWithRowNumber(WindowNode node)
+        private static boolean canReplaceWithRowNumber(WindowNode node)
         {
             return canOptimizeWindowFunction(node) && !node.getOrderingScheme().isPresent();
         }
 
-        private boolean canOptimizeWindowFunction(WindowNode node)
+        private static boolean canOptimizeWindowFunction(WindowNode node)
         {
             if (node.getWindowFunctions().size() != 1) {
                 return false;
             }
             Symbol rowNumberSymbol = getOnlyElement(node.getWindowFunctions().entrySet()).getKey();
-            return node.getWindowFunctions().get(rowNumberSymbol).getResolvedFunction().getFunctionId().equals(rowNumberFunctionId);
+            return isRowNumberSignature(node.getWindowFunctions().get(rowNumberSymbol).getSignature());
+        }
+
+        private static boolean isRowNumberSignature(Signature signature)
+        {
+            return signature.equals(ROW_NUMBER_SIGNATURE);
         }
     }
 }

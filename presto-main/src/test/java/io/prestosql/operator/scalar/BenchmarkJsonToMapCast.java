@@ -16,13 +16,14 @@ package io.prestosql.operator.scalar;
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.DynamicSliceOutput;
 import io.airlift.slice.SliceOutput;
+import io.prestosql.metadata.FunctionKind;
 import io.prestosql.metadata.Metadata;
+import io.prestosql.metadata.Signature;
 import io.prestosql.operator.DriverYieldSignal;
 import io.prestosql.operator.project.PageProcessor;
 import io.prestosql.spi.Page;
 import io.prestosql.spi.block.Block;
 import io.prestosql.spi.block.BlockBuilder;
-import io.prestosql.spi.type.MapType;
 import io.prestosql.spi.type.Type;
 import io.prestosql.sql.gen.ExpressionCompiler;
 import io.prestosql.sql.gen.PageFunctionCompiler;
@@ -59,7 +60,6 @@ import static io.prestosql.sql.relational.Expressions.field;
 import static io.prestosql.testing.TestingConnectorSession.SESSION;
 import static io.prestosql.type.JsonType.JSON;
 import static io.prestosql.util.StructuralTestUtil.mapType;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 @SuppressWarnings("MethodMayBeStatic")
 @State(Scope.Thread)
@@ -96,6 +96,8 @@ public class BenchmarkJsonToMapCast
         @Setup
         public void setup()
         {
+            Signature signature = new Signature("$operator$CAST", FunctionKind.SCALAR, mapType(VARCHAR, BIGINT).getTypeSignature(), JSON.getTypeSignature());
+
             Type valueType;
             switch (valueTypeName) {
                 case "BIGINT":
@@ -111,13 +113,10 @@ public class BenchmarkJsonToMapCast
                     throw new UnsupportedOperationException();
             }
 
-            Metadata metadata = createTestMetadataManager();
-            MapType mapType = mapType(VARCHAR, valueType);
-            List<RowExpression> projections = ImmutableList.of(new CallExpression(
-                    metadata.getCoercion(JSON, mapType),
-                    mapType,
-                    ImmutableList.of(field(0, JSON))));
+            List<RowExpression> projections = ImmutableList.of(
+                    new CallExpression(signature, mapType(VARCHAR, valueType), ImmutableList.of(field(0, JSON))));
 
+            Metadata metadata = createTestMetadataManager();
             pageProcessor = new ExpressionCompiler(metadata, new PageFunctionCompiler(metadata, 0))
                     .compilePageProcessor(Optional.empty(), projections)
                     .get();
@@ -138,9 +137,9 @@ public class BenchmarkJsonToMapCast
                     String key = "key" + i;
                     String value = generateRandomJsonValue(valueType);
                     jsonSlice.appendByte('"');
-                    jsonSlice.appendBytes(key.getBytes(UTF_8));
-                    jsonSlice.appendBytes("\":".getBytes(UTF_8));
-                    jsonSlice.appendBytes(value.getBytes(UTF_8));
+                    jsonSlice.appendBytes(key.getBytes());
+                    jsonSlice.appendBytes("\":".getBytes());
+                    jsonSlice.appendBytes(value.getBytes());
                 }
                 jsonSlice.appendByte('}');
 

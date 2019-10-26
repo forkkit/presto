@@ -18,8 +18,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.prestosql.matching.Captures;
 import io.prestosql.matching.Pattern;
-import io.prestosql.metadata.ResolvedFunction;
-import io.prestosql.metadata.Signature;
 import io.prestosql.sql.planner.OrderingScheme;
 import io.prestosql.sql.planner.Symbol;
 import io.prestosql.sql.planner.iterative.Rule;
@@ -156,7 +154,7 @@ public class ExpressionRewriteRuleSet
                 FunctionCall call = (FunctionCall) rewriter.rewrite(
                         new FunctionCall(
                                 Optional.empty(),
-                                QualifiedName.of(aggregation.getResolvedFunction().getSignature().getName()),
+                                QualifiedName.of(aggregation.getSignature().getName()),
                                 Optional.empty(),
                                 aggregation.getFilter().map(symbol -> new SymbolReference(symbol.getName())),
                                 aggregation.getOrderingScheme().map(orderBy -> new OrderBy(orderBy.getOrderBy().stream()
@@ -169,16 +167,9 @@ public class ExpressionRewriteRuleSet
                                 Optional.empty(),
                                 aggregation.getArguments()),
                         context);
-                verify(
-                        ResolvedFunction.fromQualifiedName(call.getName())
-                                .map(ResolvedFunction::getSignature)
-                                .map(Signature::getName)
-                                .map(QualifiedName::of)
-                                .orElse(call.getName())
-                                .equals(QualifiedName.of(aggregation.getResolvedFunction().getSignature().getName())),
-                        "Aggregation function name changed");
+                verify(call.getName().equals(QualifiedName.of(aggregation.getSignature().getName())), "Aggregation function name changed");
                 Aggregation newAggregation = new Aggregation(
-                        aggregation.getResolvedFunction(),
+                        aggregation.getSignature(),
                         call.getArguments(),
                         call.isDistinct(),
                         call.getFilter().map(Symbol::from),

@@ -17,9 +17,7 @@ import com.google.common.collect.ImmutableList;
 import io.airlift.bytecode.DynamicClassLoader;
 import io.prestosql.array.ObjectBigArray;
 import io.prestosql.metadata.BoundVariables;
-import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlAggregationFunction;
 import io.prestosql.operator.aggregation.AccumulatorCompiler;
 import io.prestosql.operator.aggregation.AggregationMetadata;
@@ -40,7 +38,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
-import static io.prestosql.metadata.FunctionKind.AGGREGATE;
 import static io.prestosql.metadata.Signature.comparableTypeParameter;
 import static io.prestosql.metadata.Signature.typeVariable;
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata;
@@ -49,8 +46,7 @@ import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMet
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata.ParameterType.NULLABLE_BLOCK_INPUT_CHANNEL;
 import static io.prestosql.operator.aggregation.AggregationMetadata.ParameterMetadata.ParameterType.STATE;
 import static io.prestosql.operator.aggregation.AggregationUtils.generateAggregationName;
-import static io.prestosql.spi.type.TypeSignature.arrayType;
-import static io.prestosql.spi.type.TypeSignature.mapType;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static io.prestosql.type.TypeUtils.expectedValueSize;
 import static io.prestosql.util.Reflection.methodHandle;
 
@@ -66,19 +62,18 @@ public class MultimapAggregationFunction
 
     public MultimapAggregationFunction(MultimapAggGroupImplementation groupMode)
     {
-        super(new FunctionMetadata(
-                new Signature(
-                        NAME,
-                        AGGREGATE,
-                        ImmutableList.of(comparableTypeParameter("K"), typeVariable("V")),
-                        ImmutableList.of(),
-                        mapType(new TypeSignature("K"), arrayType(new TypeSignature("V"))),
-                        ImmutableList.of(new TypeSignature("K"), new TypeSignature("V")),
-                        false),
-                false,
-                true,
-                "Aggregates all the rows (key/value pairs) into a single multimap"));
+        super(NAME,
+                ImmutableList.of(comparableTypeParameter("K"), typeVariable("V")),
+                ImmutableList.of(),
+                parseTypeSignature("map(K,array(V))"),
+                ImmutableList.of(new TypeSignature("K"), new TypeSignature("V")));
         this.groupMode = groupMode;
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "Aggregates all the rows (key/value pairs) into a single multimap";
     }
 
     @Override
@@ -87,8 +82,8 @@ public class MultimapAggregationFunction
         Type keyType = boundVariables.getTypeVariable("K");
         Type valueType = boundVariables.getTypeVariable("V");
         Type outputType = metadata.getParameterizedType(StandardTypes.MAP, ImmutableList.of(
-                TypeSignatureParameter.typeParameter(keyType.getTypeSignature()),
-                TypeSignatureParameter.typeParameter(new ArrayType(valueType).getTypeSignature())));
+                TypeSignatureParameter.of(keyType.getTypeSignature()),
+                TypeSignatureParameter.of(new ArrayType(valueType).getTypeSignature())));
         return generateAggregation(keyType, valueType, outputType);
     }
 

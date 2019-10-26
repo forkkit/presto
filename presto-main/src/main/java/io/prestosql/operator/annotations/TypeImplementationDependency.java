@@ -13,7 +13,6 @@
  */
 package io.prestosql.operator.annotations;
 
-import com.google.common.collect.ImmutableSet;
 import io.prestosql.metadata.BoundVariables;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.spi.type.Type;
@@ -22,7 +21,7 @@ import io.prestosql.spi.type.TypeSignature;
 import java.util.Objects;
 
 import static io.prestosql.metadata.SignatureBinder.applyBoundVariables;
-import static io.prestosql.operator.TypeSignatureParser.parseTypeSignature;
+import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static java.util.Objects.requireNonNull;
 
 public final class TypeImplementationDependency
@@ -32,7 +31,7 @@ public final class TypeImplementationDependency
 
     public TypeImplementationDependency(String signature)
     {
-        this.signature = parseTypeSignature(requireNonNull(signature, "signature is null"), ImmutableSet.of());
+        this.signature = parseTypeSignature(requireNonNull(signature, "signature is null"));
     }
 
     @Override

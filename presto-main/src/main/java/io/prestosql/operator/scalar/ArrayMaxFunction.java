@@ -21,6 +21,7 @@ import io.prestosql.spi.function.ScalarFunction;
 import io.prestosql.spi.function.SqlNullable;
 import io.prestosql.spi.function.SqlType;
 import io.prestosql.spi.function.TypeParameter;
+import io.prestosql.spi.type.StandardTypes;
 import io.prestosql.spi.type.Type;
 
 import java.lang.invoke.MethodHandle;
@@ -42,7 +43,7 @@ public final class ArrayMaxFunction
     @SqlType("T")
     @SqlNullable
     public static Long longArrayMax(
-            @OperatorDependency(operator = GREATER_THAN, argumentTypes = {"T", "T"}) MethodHandle compareMethodHandle,
+            @OperatorDependency(operator = GREATER_THAN, returnType = StandardTypes.BOOLEAN, argumentTypes = {"T", "T"}) MethodHandle compareMethodHandle,
             @TypeParameter("T") Type elementType,
             @SqlType("array(T)") Block block)
     {
@@ -53,7 +54,7 @@ public final class ArrayMaxFunction
     @SqlType("T")
     @SqlNullable
     public static Boolean booleanArrayMax(
-            @OperatorDependency(operator = GREATER_THAN, argumentTypes = {"T", "T"}) MethodHandle compareMethodHandle,
+            @OperatorDependency(operator = GREATER_THAN, returnType = StandardTypes.BOOLEAN, argumentTypes = {"T", "T"}) MethodHandle compareMethodHandle,
             @TypeParameter("T") Type elementType,
             @SqlType("array(T)") Block block)
     {
@@ -64,7 +65,7 @@ public final class ArrayMaxFunction
     @SqlType("T")
     @SqlNullable
     public static Double doubleArrayMax(
-            @OperatorDependency(operator = GREATER_THAN, argumentTypes = {"T", "T"}) MethodHandle compareMethodHandle,
+            @OperatorDependency(operator = GREATER_THAN, returnType = StandardTypes.BOOLEAN, argumentTypes = {"T", "T"}) MethodHandle compareMethodHandle,
             @TypeParameter("T") Type elementType,
             @SqlType("array(T)") Block block)
     {
@@ -75,7 +76,7 @@ public final class ArrayMaxFunction
     @SqlType("T")
     @SqlNullable
     public static Slice sliceArrayMax(
-            @OperatorDependency(operator = GREATER_THAN, argumentTypes = {"T", "T"}) MethodHandle compareMethodHandle,
+            @OperatorDependency(operator = GREATER_THAN, returnType = StandardTypes.BOOLEAN, argumentTypes = {"T", "T"}) MethodHandle compareMethodHandle,
             @TypeParameter("T") Type elementType,
             @SqlType("array(T)") Block block)
     {
@@ -86,7 +87,7 @@ public final class ArrayMaxFunction
     @SqlType("T")
     @SqlNullable
     public static Block blockArrayMax(
-            @OperatorDependency(operator = GREATER_THAN, argumentTypes = {"T", "T"}) MethodHandle compareMethodHandle,
+            @OperatorDependency(operator = GREATER_THAN, returnType = StandardTypes.BOOLEAN, argumentTypes = {"T", "T"}) MethodHandle compareMethodHandle,
             @TypeParameter("T") Type elementType,
             @SqlType("array(T)") Block block)
     {

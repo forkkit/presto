@@ -16,11 +16,6 @@ package io.prestosql.spi.block;
 
 import io.airlift.slice.Slice;
 
-import java.util.List;
-
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
-
 public abstract class AbstractSingleRowBlock
         implements Block
 {
@@ -30,14 +25,6 @@ public abstract class AbstractSingleRowBlock
     {
         this.rowIndex = rowIndex;
     }
-
-    @Override
-    public final List<Block> getChildren()
-    {
-        return unmodifiableList(asList(getRawFieldBlocks()));
-    }
-
-    abstract Block[] getRawFieldBlocks();
 
     protected abstract Block getRawFieldBlock(int fieldIndex);
 
