@@ -128,7 +128,7 @@ public class TestSubqueries
                 "SELECT (SELECT sum(t.a) FROM (VALUES 1, 2) t(a) WHERE t.a=t2.b group by t.a LIMIT 2) FROM (VALUES 1) t2(b)",
                 "VALUES BIGINT '1'");
         assertions.assertQuery(
-                "SELECT (SELECT count(*) FROM (SELECT t.a FROM (VALUES 1, 1, null, 3) t(a) LIMIT 1) t WHERE t.a=t2.b) FROM (VALUES 1, 2) t2(b)",
+                "SELECT (SELECT count(*) FROM (SELECT t.a FROM (VALUES 1, 1, null, 3) t(a) WHERE t.a=t2.b LIMIT 1)) FROM (VALUES 1, 2) t2(b)",
                 "VALUES BIGINT '1', BIGINT '0'");
         assertExistsRewrittenToAggregationBelowJoin(
                 "SELECT EXISTS(SELECT 1 FROM (VALUES 1, 1, 3) t(a) WHERE t.a=t2.b LIMIT 1) FROM (VALUES 1, 2) t2(b)",
@@ -253,6 +253,23 @@ public class TestSubqueries
     }
 
     @Test
+    public void testNestedUncorrelatedSubqueryInCorrelatedSubquery()
+    {
+        // aggregation with empty grouping set
+        assertions.assertQuery(
+                "SELECT((SELECT b FROM (SELECT array_agg(a) FROM (VALUES 1) A(a)) B(b) WHERE b = c)) FROM (VALUES ARRAY[1], ARRAY[2]) C(c)",
+                "VALUES ARRAY[1], null");
+        // aggregation with multiple grouping sets
+        assertions.assertQuery(
+                "SELECT((SELECT b FROM (SELECT count(a) FROM (VALUES (1, 2, 3)) A(a, key_1, key_2) GROUP BY GROUPING SETS ((key_1), (key_2)) LIMIT 1) B(b) WHERE b = c)) FROM (VALUES 1, 2) C(c)",
+                "VALUES BIGINT '1', null");
+        // limit 1
+        assertions.assertQuery(
+                "SELECT((SELECT c FROM (SELECT b FROM (VALUES (1, 2), (1, 2)) inner_relation(a, b) WHERE a = 1 LIMIT 1) C(c) WHERE c = d)) FROM (VALUES 2) D(d)",
+                "VALUES 2");
+    }
+
+    @Test
     public void testCorrelatedSubqueriesWithGroupBy()
     {
         // t.a is not a "constant" column, group by does not guarantee single row per correlated subquery
@@ -363,6 +380,23 @@ public class TestSubqueries
                         "    GROUP BY y" +
                         "    HAVING y = t.x)",
                 "VALUES 1");
+    }
+
+    @Test
+    public void testCorrelatedSubqueryWithoutFilter()
+    {
+        assertions.assertQuery(
+                "SELECT (SELECT outer_relation.b FROM (VALUES 1) inner_relation) FROM (values 2) outer_relation(b)",
+                "VALUES 2");
+        assertions.assertFails(
+                "SELECT (VALUES b) FROM (VALUES 2) outer_relation(b)",
+                UNSUPPORTED_CORRELATED_SUBQUERY_ERROR_MSG);
+        assertions.assertFails(
+                "SELECT (SELECT a + b FROM (VALUES 1) inner_relation(a)) FROM (VALUES 2) outer_relation(b)",
+                UNSUPPORTED_CORRELATED_SUBQUERY_ERROR_MSG);
+        assertions.assertFails(
+                "SELECT (SELECT rank() OVER(partition by b) FROM (VALUES 1) inner_relation(a)) FROM (VALUES 2) outer_relation(b)",
+                UNSUPPORTED_CORRELATED_SUBQUERY_ERROR_MSG);
     }
 
     private void assertExistsRewrittenToAggregationBelowJoin(@Language("SQL") String actual, @Language("SQL") String expected, boolean extraAggregation)

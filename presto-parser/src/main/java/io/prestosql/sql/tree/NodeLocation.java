@@ -13,6 +13,8 @@
  */
 package io.prestosql.sql.tree;
 
+import java.util.Objects;
+
 public final class NodeLocation
 {
     private final int line;
@@ -32,5 +34,31 @@ public final class NodeLocation
     public int getColumnNumber()
     {
         return charPositionInLine + 1;
+    }
+
+    @Override
+    public String toString()
+    {
+        return line + ":" + charPositionInLine;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        NodeLocation that = (NodeLocation) o;
+        return line == that.line &&
+                charPositionInLine == that.charPositionInLine;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(line, charPositionInLine);
     }
 }

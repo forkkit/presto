@@ -17,8 +17,10 @@ import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
 import io.prestosql.annotation.UsedByGeneratedCode;
 import io.prestosql.metadata.BoundVariables;
+import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.metadata.OperatorNotFoundException;
+import io.prestosql.metadata.ResolvedFunction;
 import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlScalarFunction;
 import io.prestosql.spi.PrestoException;
@@ -27,6 +29,7 @@ import io.prestosql.spi.connector.ConnectorSession;
 import io.prestosql.spi.type.DecimalType;
 import io.prestosql.spi.type.Type;
 import io.prestosql.spi.type.TypeSignature;
+import io.prestosql.sql.tree.QualifiedName;
 
 import java.lang.invoke.MethodHandle;
 import java.math.BigDecimal;
@@ -45,7 +48,6 @@ import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.Streams.mapWithIndex;
 import static io.airlift.slice.Slices.utf8Slice;
 import static io.prestosql.metadata.FunctionKind.SCALAR;
-import static io.prestosql.metadata.Signature.internalScalarFunction;
 import static io.prestosql.metadata.Signature.withVariadicBound;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.ArgumentProperty.valueTypeArgumentProperty;
 import static io.prestosql.operator.scalar.ScalarFunctionImplementation.NullConvention.RETURN_NULL_ON_NULL;
@@ -70,6 +72,7 @@ import static io.prestosql.spi.type.TimestampWithTimeZoneType.TIMESTAMP_WITH_TIM
 import static io.prestosql.spi.type.TinyintType.TINYINT;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
 import static io.prestosql.spi.type.Varchars.isVarcharType;
+import static io.prestosql.sql.analyzer.TypeSignatureProvider.fromTypes;
 import static io.prestosql.type.JsonType.JSON;
 import static io.prestosql.type.UnknownType.UNKNOWN;
 import static io.prestosql.util.Failures.internalError;
@@ -89,13 +92,17 @@ public final class FormatFunction
 
     private FormatFunction()
     {
-        super(Signature.builder()
-                .kind(SCALAR)
-                .name(NAME)
-                .typeVariableConstraints(withVariadicBound("T", "row"))
-                .argumentTypes(VARCHAR.getTypeSignature(), new TypeSignature("T"))
-                .returnType(VARCHAR.getTypeSignature())
-                .build());
+        super(new FunctionMetadata(
+                Signature.builder()
+                        .kind(SCALAR)
+                        .name(NAME)
+                        .typeVariableConstraints(withVariadicBound("T", "row"))
+                        .argumentTypes(VARCHAR.getTypeSignature(), new TypeSignature("T"))
+                        .returnType(VARCHAR.getTypeSignature())
+                        .build(),
+                true,
+                true,
+                "formats the input arguments using a format string"));
     }
 
     @Override
@@ -113,26 +120,7 @@ public final class FormatFunction
                 ImmutableList.of(
                         valueTypeArgumentProperty(RETURN_NULL_ON_NULL),
                         valueTypeArgumentProperty(RETURN_NULL_ON_NULL)),
-                METHOD_HANDLE.bindTo(converters),
-                true);
-    }
-
-    @Override
-    public boolean isHidden()
-    {
-        return true;
-    }
-
-    @Override
-    public boolean isDeterministic()
-    {
-        return true;
-    }
-
-    @Override
-    public String getDescription()
-    {
-        return "formats the input arguments using a format string";
+                METHOD_HANDLE.bindTo(converters));
     }
 
     public static void validateType(Metadata metadata, Type type)
@@ -199,8 +187,8 @@ public final class FormatFunction
         }
         // TODO: support TIME WITH TIME ZONE by making SqlTimeWithTimeZone implement TemporalAccessor
         if (type.equals(JSON)) {
-            Signature signature = internalScalarFunction("json_format", VARCHAR.getTypeSignature(), JSON.getTypeSignature());
-            MethodHandle handle = metadata.getScalarFunctionImplementation(signature).getMethodHandle();
+            ResolvedFunction function = metadata.resolveFunction(QualifiedName.of("json_format"), fromTypes(JSON));
+            MethodHandle handle = metadata.getScalarFunctionImplementation(function).getMethodHandle();
             return (session, block) -> convertToString(handle, type.getSlice(block, position));
         }
         if (isShortDecimal(type)) {
@@ -243,7 +231,7 @@ public final class FormatFunction
     private static MethodHandle castToVarchar(Metadata metadata, Type type)
     {
         try {
-            Signature cast = metadata.getCoercion(type, VARCHAR);
+            ResolvedFunction cast = metadata.getCoercion(type, VARCHAR);
             return metadata.getScalarFunctionImplementation(cast).getMethodHandle();
         }
         catch (OperatorNotFoundException e) {

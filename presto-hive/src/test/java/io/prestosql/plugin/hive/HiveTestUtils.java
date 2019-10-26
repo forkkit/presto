@@ -19,7 +19,7 @@ import io.airlift.slice.Slice;
 import io.airlift.units.DataSize;
 import io.prestosql.PagesIndexPageSorter;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.Signature;
+import io.prestosql.metadata.ResolvedFunction;
 import io.prestosql.operator.PagesIndex;
 import io.prestosql.plugin.hive.authentication.NoHdfsAuthentication;
 import io.prestosql.plugin.hive.gcs.GoogleGcsConfigurationInitializer;
@@ -93,7 +93,7 @@ public final class HiveTestUtils
         FileFormatDataSourceStats stats = new FileFormatDataSourceStats();
         return ImmutableSet.<HivePageSourceFactory>builder()
                 .add(new RcFilePageSourceFactory(TYPE_MANAGER, hdfsEnvironment, stats))
-                .add(new OrcPageSourceFactory(TYPE_MANAGER, new OrcReaderConfig(), hdfsEnvironment, stats))
+                .add(new OrcPageSourceFactory(new OrcReaderConfig(), hdfsEnvironment, stats))
                 .add(new ParquetPageSourceFactory(TYPE_MANAGER, hdfsEnvironment, stats))
                 .build();
     }
@@ -129,7 +129,7 @@ public final class HiveTestUtils
     {
         ImmutableList.Builder<Type> types = ImmutableList.builder();
         for (ColumnHandle columnHandle : columnHandles) {
-            types.add(METADATA.getType(((HiveColumnHandle) columnHandle).getTypeSignature()));
+            types.add(((HiveColumnHandle) columnHandle).getType());
         }
         return types.build();
     }
@@ -154,15 +154,15 @@ public final class HiveTestUtils
     public static MapType mapType(Type keyType, Type valueType)
     {
         return (MapType) METADATA.getParameterizedType(StandardTypes.MAP, ImmutableList.of(
-                TypeSignatureParameter.of(keyType.getTypeSignature()),
-                TypeSignatureParameter.of(valueType.getTypeSignature())));
+                TypeSignatureParameter.typeParameter(keyType.getTypeSignature()),
+                TypeSignatureParameter.typeParameter(valueType.getTypeSignature())));
     }
 
     public static ArrayType arrayType(Type elementType)
     {
         return (ArrayType) METADATA.getParameterizedType(
                 StandardTypes.ARRAY,
-                ImmutableList.of(TypeSignatureParameter.of(elementType.getTypeSignature())));
+                ImmutableList.of(TypeSignatureParameter.typeParameter(elementType.getTypeSignature())));
     }
 
     public static RowType rowType(List<NamedTypeSignature> elementTypeSignatures)
@@ -170,7 +170,7 @@ public final class HiveTestUtils
         return (RowType) METADATA.getParameterizedType(
                 StandardTypes.ROW,
                 ImmutableList.copyOf(elementTypeSignatures.stream()
-                        .map(TypeSignatureParameter::of)
+                        .map(TypeSignatureParameter::namedTypeParameter)
                         .collect(toList())));
     }
 
@@ -186,8 +186,8 @@ public final class HiveTestUtils
 
     public static MethodHandle distinctFromOperator(Type type)
     {
-        Signature signature = METADATA.resolveOperator(IS_DISTINCT_FROM, ImmutableList.of(type, type));
-        return METADATA.getScalarFunctionImplementation(signature).getMethodHandle();
+        ResolvedFunction function = METADATA.resolveOperator(IS_DISTINCT_FROM, ImmutableList.of(type, type));
+        return METADATA.getScalarFunctionImplementation(function).getMethodHandle();
     }
 
     public static boolean isDistinctFrom(MethodHandle handle, Block left, Block right)

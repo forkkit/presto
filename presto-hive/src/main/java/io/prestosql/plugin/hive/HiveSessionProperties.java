@@ -34,7 +34,6 @@ import static io.prestosql.plugin.hive.HiveSessionProperties.InsertExistingParti
 import static io.prestosql.plugin.hive.HiveSessionProperties.InsertExistingPartitionsBehavior.ERROR;
 import static io.prestosql.spi.StandardErrorCode.INVALID_SESSION_PROPERTY;
 import static io.prestosql.spi.session.PropertyMetadata.booleanProperty;
-import static io.prestosql.spi.session.PropertyMetadata.dataSizeProperty;
 import static io.prestosql.spi.session.PropertyMetadata.enumProperty;
 import static io.prestosql.spi.session.PropertyMetadata.integerProperty;
 import static io.prestosql.spi.session.PropertyMetadata.stringProperty;
@@ -55,6 +54,7 @@ public final class HiveSessionProperties
     private static final String ORC_TINY_STRIPE_THRESHOLD = "orc_tiny_stripe_threshold";
     private static final String ORC_MAX_READ_BLOCK_SIZE = "orc_max_read_block_size";
     private static final String ORC_LAZY_READ_SMALL_RANGES = "orc_lazy_read_small_ranges";
+    private static final String ORC_NESTED_LAZY_ENABLED = "orc_nested_lazy_enabled";
     private static final String ORC_STRING_STATISTICS_LIMIT = "orc_string_statistics_limit";
     private static final String ORC_OPTIMIZED_WRITER_VALIDATE = "orc_optimized_writer_validate";
     private static final String ORC_OPTIMIZED_WRITER_VALIDATE_PERCENTAGE = "orc_optimized_writer_validate_percentage";
@@ -167,6 +167,11 @@ public final class HiveSessionProperties
                         ORC_LAZY_READ_SMALL_RANGES,
                         "Experimental: ORC: Read small file segments lazily",
                         orcReaderConfig.isLazyReadSmallRanges(),
+                        false),
+                booleanProperty(
+                        ORC_NESTED_LAZY_ENABLED,
+                        "Experimental: ORC: Lazily read nested data",
+                        orcReaderConfig.isNestedLazy(),
                         false),
                 dataSizeProperty(
                         ORC_STRING_STATISTICS_LIMIT,
@@ -385,6 +390,11 @@ public final class HiveSessionProperties
         return session.getProperty(ORC_LAZY_READ_SMALL_RANGES, Boolean.class);
     }
 
+    public static boolean isOrcNestedLazy(ConnectorSession session)
+    {
+        return session.getProperty(ORC_NESTED_LAZY_ENABLED, Boolean.class);
+    }
+
     public static DataSize getOrcStringStatisticsLimit(ConnectorSession session)
     {
         return session.getProperty(ORC_STRING_STATISTICS_LIMIT, DataSize.class);
@@ -539,5 +549,18 @@ public final class HiveSessionProperties
     public static String getTemporaryStagingDirectoryPath(ConnectorSession session)
     {
         return session.getProperty(TEMPORARY_STAGING_DIRECTORY_PATH, String.class);
+    }
+
+    private static PropertyMetadata<DataSize> dataSizeProperty(String name, String description, DataSize defaultValue, boolean hidden)
+    {
+        return new PropertyMetadata<>(
+                name,
+                description,
+                VARCHAR,
+                DataSize.class,
+                defaultValue,
+                hidden,
+                value -> DataSize.valueOf((String) value),
+                DataSize::toString);
     }
 }

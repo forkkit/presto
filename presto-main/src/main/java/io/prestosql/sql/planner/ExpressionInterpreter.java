@@ -23,8 +23,9 @@ import io.airlift.slice.Slice;
 import io.prestosql.Session;
 import io.prestosql.client.FailureInfo;
 import io.prestosql.execution.warnings.WarningCollector;
+import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
-import io.prestosql.metadata.Signature;
+import io.prestosql.metadata.ResolvedFunction;
 import io.prestosql.operator.scalar.ArraySubscriptOperator;
 import io.prestosql.operator.scalar.ScalarFunctionImplementation;
 import io.prestosql.spi.PrestoException;
@@ -60,6 +61,8 @@ import io.prestosql.sql.tree.CurrentUser;
 import io.prestosql.sql.tree.DereferenceExpression;
 import io.prestosql.sql.tree.ExistsPredicate;
 import io.prestosql.sql.tree.Expression;
+import io.prestosql.sql.tree.ExpressionRewriter;
+import io.prestosql.sql.tree.ExpressionTreeRewriter;
 import io.prestosql.sql.tree.FieldReference;
 import io.prestosql.sql.tree.FunctionCall;
 import io.prestosql.sql.tree.Identifier;
@@ -125,10 +128,12 @@ import static io.prestosql.spi.type.TypeUtils.readNativeValue;
 import static io.prestosql.spi.type.TypeUtils.writeNativeValue;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
 import static io.prestosql.spi.type.VarcharType.createVarcharType;
+import static io.prestosql.sql.DynamicFilters.isDynamicFilter;
 import static io.prestosql.sql.analyzer.ConstantExpressionVerifier.verifyExpressionIsConstant;
 import static io.prestosql.sql.analyzer.ExpressionAnalyzer.createConstantAnalyzer;
 import static io.prestosql.sql.analyzer.SemanticExceptions.semanticException;
-import static io.prestosql.sql.analyzer.TypeSignatureProvider.fromTypes;
+import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toSqlType;
+import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toTypeSignature;
 import static io.prestosql.sql.gen.VarArgsToMapAdapterGenerator.generateVarArgsToMapAdapter;
 import static io.prestosql.sql.planner.DeterminismEvaluator.isDeterministic;
 import static io.prestosql.sql.planner.iterative.rule.CanonicalizeExpressionRewriter.canonicalizeExpression;
@@ -227,8 +232,36 @@ public class ExpressionInterpreter
         analyzer = createConstantAnalyzer(metadata, session, parameters, WarningCollector.NOOP);
         analyzer.analyze(canonicalized, Scope.create());
 
+        // resolve functions
+        Map<NodeRef<FunctionCall>, ResolvedFunction> resolvedFunctions = analyzer.getResolvedFunctions();
+        Expression resolved = ExpressionTreeRewriter.rewriteWith(new ExpressionRewriter<Void>()
+        {
+            @Override
+            public Expression rewriteFunctionCall(FunctionCall node, Void context, ExpressionTreeRewriter<Void> treeRewriter)
+            {
+                ResolvedFunction resolvedFunction = resolvedFunctions.get(NodeRef.of(node));
+                checkArgument(resolvedFunction != null, "Function has not been analyzed: %s", node);
+
+                FunctionCall rewritten = treeRewriter.defaultRewrite(node, context);
+                return new FunctionCall(
+                        rewritten.getLocation(),
+                        resolvedFunction.toQualifiedName(),
+                        rewritten.getWindow(),
+                        rewritten.getFilter(),
+                        rewritten.getOrderBy(),
+                        rewritten.isDistinct(),
+                        rewritten.getNullTreatment(),
+                        rewritten.getArguments());
+            }
+        }, canonicalized);
+
+        // The optimization above may have rewritten the expression tree which breaks all the identity maps, so redo the analysis
+        // to re-analyze coercions that might be necessary
+        analyzer = createConstantAnalyzer(metadata, session, parameters, WarningCollector.NOOP);
+        analyzer.analyze(resolved, Scope.create());
+
         // evaluate the expression
-        Object result = expressionInterpreter(canonicalized, metadata, session, analyzer.getExpressionTypes()).evaluate();
+        Object result = expressionInterpreter(resolved, metadata, session, analyzer.getExpressionTypes()).evaluate();
         verify(!(result instanceof Expression), "Expression interpreter returned an unresolved expression");
         return result;
     }
@@ -513,7 +546,7 @@ public class ExpressionInterpreter
             Set<Expression> visitedExpression = new HashSet<>();
             for (Object value : values) {
                 Expression expression = toExpression(value, type);
-                if (!isDeterministic(expression) || visitedExpression.add(expression)) {
+                if (!isDeterministic(expression, metadata) || visitedExpression.add(expression)) {
                     operandsBuilder.add(expression);
                 }
                 // TODO: Replace this logic with an anlyzer which specifies whether it evaluates to null
@@ -610,10 +643,10 @@ public class ExpressionInterpreter
                 List<Expression> expressionValues = toExpressions(values, types);
                 List<Expression> simplifiedExpressionValues = Stream.concat(
                         expressionValues.stream()
-                                .filter(DeterminismEvaluator::isDeterministic)
+                                .filter(expression -> isDeterministic(expression, metadata))
                                 .distinct(),
                         expressionValues.stream()
-                                .filter((expression -> !isDeterministic(expression))))
+                                .filter((expression -> !isDeterministic(expression, metadata))))
                         .collect(toImmutableList());
 
                 if (simplifiedExpressionValues.size() == 1) {
@@ -661,8 +694,8 @@ public class ExpressionInterpreter
                 case PLUS:
                     return value;
                 case MINUS:
-                    Signature operatorSignature = metadata.resolveOperator(OperatorType.NEGATION, types(node.getValue()));
-                    MethodHandle handle = metadata.getScalarFunctionImplementation(operatorSignature).getMethodHandle();
+                    ResolvedFunction resolvedOperator = metadata.resolveOperator(OperatorType.NEGATION, types(node.getValue()));
+                    MethodHandle handle = metadata.getScalarFunctionImplementation(resolvedOperator).getMethodHandle();
 
                     if (handle.type().parameterCount() > 0 && handle.type().parameterType(0) == ConnectorSession.class) {
                         handle = handle.bindTo(session);
@@ -796,8 +829,8 @@ public class ExpressionInterpreter
 
             Type commonType = typeCoercion.getCommonSuperType(firstType, secondType).get();
 
-            Signature firstCast = metadata.getCoercion(firstType, commonType);
-            Signature secondCast = metadata.getCoercion(secondType, commonType);
+            ResolvedFunction firstCast = metadata.getCoercion(firstType, commonType);
+            ResolvedFunction secondCast = metadata.getCoercion(secondType, commonType);
 
             // cast(first as <common type>) == cast(second as <common type>)
             boolean equal = Boolean.TRUE.equals(invokeOperator(
@@ -899,8 +932,11 @@ public class ExpressionInterpreter
                 argumentValues.add(value);
                 argumentTypes.add(type);
             }
-            Signature functionSignature = metadata.resolveFunction(node.getName(), fromTypes(argumentTypes));
-            ScalarFunctionImplementation function = metadata.getScalarFunctionImplementation(functionSignature);
+
+            ResolvedFunction resolvedFunction = ResolvedFunction.fromQualifiedName(node.getName())
+                    .orElseThrow(() -> new IllegalArgumentException("function call has not been resolved: " + node));
+            FunctionMetadata functionMetadata = metadata.getFunctionMetadata(resolvedFunction);
+            ScalarFunctionImplementation function = metadata.getScalarFunctionImplementation(resolvedFunction);
             for (int i = 0; i < argumentValues.size(); i++) {
                 Object value = argumentValues.get(i);
                 if (value == null && function.getArgumentProperty(i).getNullConvention() == RETURN_NULL_ON_NULL) {
@@ -909,7 +945,10 @@ public class ExpressionInterpreter
             }
 
             // do not optimize non-deterministic functions
-            if (optimize && (!function.isDeterministic() || hasUnresolvedValue(argumentValues) || node.getName().equals(QualifiedName.of("fail")))) {
+            if (optimize && (!functionMetadata.isDeterministic() ||
+                    hasUnresolvedValue(argumentValues) ||
+                    isDynamicFilter(metadata, node) ||
+                    resolvedFunction.getSignature().getName().equals("fail"))) {
                 verify(!node.isDistinct(), "window does not support distinct");
                 verify(!node.getOrderBy().isPresent(), "window does not support order by");
                 verify(!node.getFilter().isPresent(), "window does not support filter");
@@ -919,7 +958,7 @@ public class ExpressionInterpreter
                         .setArguments(argumentTypes, toExpressions(argumentValues, argumentTypes))
                         .build();
             }
-            return functionInvoker.invoke(functionSignature, session, argumentValues);
+            return functionInvoker.invoke(resolvedFunction, session, argumentValues);
         }
 
         @Override
@@ -1027,10 +1066,10 @@ public class ExpressionInterpreter
                 Expression patternExpression = toExpression(unescapedPattern, patternType);
                 Type superType = commonSuperType.get();
                 if (!valueType.equals(superType)) {
-                    valueExpression = new Cast(valueExpression, superType.getTypeSignature().toString(), false, typeCoercion.isTypeOnlyCoercion(valueType, superType));
+                    valueExpression = new Cast(valueExpression, toSqlType(superType), false, typeCoercion.isTypeOnlyCoercion(valueType, superType));
                 }
                 if (!patternType.equals(superType)) {
-                    patternExpression = new Cast(patternExpression, superType.getTypeSignature().toString(), false, typeCoercion.isTypeOnlyCoercion(patternType, superType));
+                    patternExpression = new Cast(patternExpression, toSqlType(superType), false, typeCoercion.isTypeOnlyCoercion(patternType, superType));
                 }
                 return new ComparisonExpression(ComparisonExpression.Operator.EQUAL, valueExpression, patternExpression);
             }
@@ -1082,7 +1121,7 @@ public class ExpressionInterpreter
         public Object visitCast(Cast node, Object context)
         {
             Object value = process(node.getExpression(), context);
-            Type targetType = metadata.fromSqlType(node.getType());
+            Type targetType = metadata.getType(toTypeSignature(node.getType()));
             Type sourceType = type(node.getExpression());
             if (value instanceof Expression) {
                 if (targetType.equals(sourceType)) {
@@ -1106,7 +1145,7 @@ public class ExpressionInterpreter
                 return null;
             }
 
-            Signature operator = metadata.getCoercion(sourceType, targetType);
+            ResolvedFunction operator = metadata.getCoercion(sourceType, targetType);
 
             try {
                 return functionInvoker.invoke(operator, session, ImmutableList.of(value));
@@ -1263,8 +1302,8 @@ public class ExpressionInterpreter
 
         private Object invokeOperator(OperatorType operatorType, List<? extends Type> argumentTypes, List<Object> argumentValues)
         {
-            Signature operatorSignature = metadata.resolveOperator(operatorType, argumentTypes);
-            return functionInvoker.invoke(operatorSignature, session, argumentValues);
+            ResolvedFunction operator = metadata.resolveOperator(operatorType, argumentTypes);
+            return functionInvoker.invoke(operator, session, argumentValues);
         }
 
         private Expression toExpression(Object base, Type type)
@@ -1315,7 +1354,7 @@ public class ExpressionInterpreter
                 .addArgument(JSON, jsonParse)
                 .build();
 
-        return new Cast(failureFunction, type.getTypeSignature().toString());
+        return new Cast(failureFunction, toSqlType(type));
     }
 
     private static boolean isArray(Type type)

@@ -24,6 +24,7 @@ import io.prestosql.execution.warnings.WarningCollector;
 import io.prestosql.metadata.Metadata;
 import io.prestosql.metadata.OperatorNotFoundException;
 import io.prestosql.metadata.QualifiedObjectName;
+import io.prestosql.metadata.ResolvedFunction;
 import io.prestosql.metadata.Signature;
 import io.prestosql.operator.scalar.FormatFunction;
 import io.prestosql.security.AccessControl;
@@ -149,6 +150,7 @@ import static io.prestosql.sql.analyzer.Analyzer.verifyNoAggregateWindowOrGroupi
 import static io.prestosql.sql.analyzer.ExpressionTreeUtils.extractLocation;
 import static io.prestosql.sql.analyzer.SemanticExceptions.missingAttributeException;
 import static io.prestosql.sql.analyzer.SemanticExceptions.semanticException;
+import static io.prestosql.sql.analyzer.TypeSignatureTranslator.toTypeSignature;
 import static io.prestosql.sql.tree.ArrayConstructor.ARRAY_CONSTRUCTOR;
 import static io.prestosql.sql.tree.Extract.Field.TIMEZONE_HOUR;
 import static io.prestosql.sql.tree.Extract.Field.TIMEZONE_MINUTE;
@@ -176,7 +178,7 @@ public class ExpressionAnalyzer
     private final TypeProvider symbolTypes;
     private final boolean isDescribe;
 
-    private final Map<NodeRef<FunctionCall>, Signature> resolvedFunctions = new LinkedHashMap<>();
+    private final Map<NodeRef<FunctionCall>, ResolvedFunction> resolvedFunctions = new LinkedHashMap<>();
     private final Set<NodeRef<SubqueryExpression>> scalarSubqueries = new LinkedHashSet<>();
     private final Set<NodeRef<ExistsPredicate>> existsSubqueries = new LinkedHashSet<>();
     private final Map<NodeRef<Expression>, Type> expressionCoercions = new LinkedHashMap<>();
@@ -214,7 +216,7 @@ public class ExpressionAnalyzer
         this.typeCoercion = new TypeCoercion(metadata::getType);
     }
 
-    public Map<NodeRef<FunctionCall>, Signature> getResolvedFunctions()
+    public Map<NodeRef<FunctionCall>, ResolvedFunction> getResolvedFunctions()
     {
         return unmodifiableMap(resolvedFunctions);
     }
@@ -556,9 +558,7 @@ public class ExpressionAnalyzer
         @Override
         protected Type visitSimpleCaseExpression(SimpleCaseExpression node, StackableAstVisitorContext<Context> context)
         {
-            for (WhenClause whenClause : node.getWhenClauses()) {
-                coerceToSingleType(context, whenClause, "CASE operand type does not match WHEN clause operand type: %s vs %s", node.getOperand(), whenClause.getOperand());
-            }
+            coerceCaseOperandToToSingleType(node, context);
 
             Type type = coerceToSingleType(context,
                     "All CASE results must be the same type: %s",
@@ -571,6 +571,41 @@ public class ExpressionAnalyzer
             }
 
             return type;
+        }
+
+        private void coerceCaseOperandToToSingleType(SimpleCaseExpression node, StackableAstVisitorContext<Context> context)
+        {
+            Type operandType = process(node.getOperand(), context);
+
+            List<WhenClause> whenClauses = node.getWhenClauses();
+            List<Type> whenOperandTypes = new ArrayList<>(whenClauses.size());
+
+            Type commonType = operandType;
+            for (WhenClause whenClause : whenClauses) {
+                Expression whenOperand = whenClause.getOperand();
+                Type whenOperandType = process(whenOperand, context);
+                whenOperandTypes.add(whenOperandType);
+
+                Optional<Type> operandCommonType = typeCoercion.getCommonSuperType(commonType, whenOperandType);
+
+                if (!operandCommonType.isPresent()) {
+                    throw semanticException(TYPE_MISMATCH, whenOperand, "CASE operand type does not match WHEN clause operand type: %s vs %s", operandType, whenOperandType);
+                }
+
+                commonType = operandCommonType.get();
+            }
+
+            if (commonType != operandType) {
+                addOrReplaceExpressionCoercion(node.getOperand(), operandType, commonType);
+            }
+
+            for (int i = 0; i < whenOperandTypes.size(); i++) {
+                Type whenOperandType = whenOperandTypes.get(i);
+                if (!whenOperandType.equals(commonType)) {
+                    Expression whenOperand = whenClauses.get(i).getOperand();
+                    addOrReplaceExpressionCoercion(whenOperand, whenOperandType, commonType);
+                }
+            }
         }
 
         private List<Expression> getCaseResultExpressions(List<WhenClause> whenClauses, Optional<Expression> defaultValue)
@@ -677,7 +712,7 @@ public class ExpressionAnalyzer
         protected Type visitArrayConstructor(ArrayConstructor node, StackableAstVisitorContext<Context> context)
         {
             Type type = coerceToSingleType(context, "All ARRAY elements must be the same type: %s", node.getValues());
-            Type arrayType = metadata.getParameterizedType(ARRAY.getName(), ImmutableList.of(TypeSignatureParameter.of(type.getTypeSignature())));
+            Type arrayType = metadata.getParameterizedType(ARRAY.getName(), ImmutableList.of(TypeSignatureParameter.typeParameter(type.getTypeSignature())));
             return setExpressionType(node, arrayType);
         }
 
@@ -859,7 +894,7 @@ public class ExpressionAnalyzer
 
             List<TypeSignatureProvider> argumentTypes = getCallArgumentTypes(node.getArguments(), context);
 
-            Signature function;
+            ResolvedFunction function;
             try {
                 function = metadata.resolveFunction(node.getName(), argumentTypes);
             }
@@ -876,15 +911,15 @@ public class ExpressionAnalyzer
                 throw new PrestoException(e::getErrorCode, extractLocation(node), e.getMessage(), e);
             }
 
-            if (function.getName().equalsIgnoreCase(ARRAY_CONSTRUCTOR)) {
+            if (function.getSignature().getName().equalsIgnoreCase(ARRAY_CONSTRUCTOR)) {
                 // After optimization, array constructor is rewritten to a function call.
                 // For historic reasons array constructor is allowed to have 254 arguments
                 if (node.getArguments().size() > 254) {
-                    throw semanticException(TOO_MANY_ARGUMENTS, node, "Too many arguments for array constructor", function.getName());
+                    throw semanticException(TOO_MANY_ARGUMENTS, node, "Too many arguments for array constructor", function.getSignature().getName());
                 }
             }
             else if (node.getArguments().size() > 127) {
-                throw semanticException(TOO_MANY_ARGUMENTS, node, "Too many arguments for function call %s()", function.getName());
+                throw semanticException(TOO_MANY_ARGUMENTS, node, "Too many arguments for function call %s()", function.getSignature().getName());
             }
 
             if (node.getOrderBy().isPresent()) {
@@ -896,10 +931,11 @@ public class ExpressionAnalyzer
                 }
             }
 
+            Signature signature = function.getSignature();
             for (int i = 0; i < node.getArguments().size(); i++) {
                 Expression expression = node.getArguments().get(i);
-                Type expectedType = metadata.getType(function.getArgumentTypes().get(i));
-                requireNonNull(expectedType, format("Type %s not found", function.getArgumentTypes().get(i)));
+                Type expectedType = metadata.getType(signature.getArgumentTypes().get(i));
+                requireNonNull(expectedType, format("Type %s not found", signature.getArgumentTypes().get(i)));
                 if (node.isDistinct() && !expectedType.isComparable()) {
                     throw semanticException(TYPE_MISMATCH, node, "DISTINCT can only be applied to comparable types (actual: %s)", expectedType);
                 }
@@ -914,7 +950,7 @@ public class ExpressionAnalyzer
             }
             resolvedFunctions.put(NodeRef.of(node), function);
 
-            Type type = metadata.getType(function.getReturnType());
+            Type type = metadata.getType(signature.getReturnType());
             return setExpressionType(node, type);
         }
 
@@ -1067,7 +1103,7 @@ public class ExpressionAnalyzer
         {
             Type type;
             try {
-                type = metadata.fromSqlType(node.getType());
+                type = metadata.getType(toTypeSignature(node.getType()));
             }
             catch (TypeNotFoundException e) {
                 throw semanticException(TYPE_MISMATCH, node, "Unknown type: " + node.getType());
@@ -1318,7 +1354,7 @@ public class ExpressionAnalyzer
 
             Signature operatorSignature;
             try {
-                operatorSignature = metadata.resolveOperator(operatorType, argumentTypes.build());
+                operatorSignature = metadata.resolveOperator(operatorType, argumentTypes.build()).getSignature();
             }
             catch (OperatorNotFoundException e) {
                 throw semanticException(TYPE_MISMATCH, node, "%s", e.getMessage());
@@ -1536,11 +1572,11 @@ public class ExpressionAnalyzer
         Map<NodeRef<Expression>, Type> expressionTypes = analyzer.getExpressionTypes();
         Map<NodeRef<Expression>, Type> expressionCoercions = analyzer.getExpressionCoercions();
         Set<NodeRef<Expression>> typeOnlyCoercions = analyzer.getTypeOnlyCoercions();
-        Map<NodeRef<FunctionCall>, Signature> resolvedFunctions = analyzer.getResolvedFunctions();
+        Map<NodeRef<FunctionCall>, ResolvedFunction> resolvedFunctions = analyzer.getResolvedFunctions();
 
         analysis.addTypes(expressionTypes);
         analysis.addCoercions(expressionCoercions, typeOnlyCoercions);
-        analysis.addFunctionSignatures(resolvedFunctions);
+        analysis.addResolvedFunction(resolvedFunctions);
         analysis.addColumnReferences(analyzer.getColumnReferences());
         analysis.addLambdaArgumentReferences(analyzer.getLambdaArgumentReferences());
         analysis.addTableColumnReferences(accessControl, session.getIdentity(), analyzer.getTableColumnReferences());

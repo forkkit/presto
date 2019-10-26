@@ -14,7 +14,6 @@
 package io.prestosql.tests.hive;
 
 import com.google.common.primitives.Longs;
-import io.prestosql.tempto.ProductTest;
 import io.prestosql.tempto.Requires;
 import io.prestosql.tempto.fulfillment.table.hive.tpch.ImmutableTpchTablesRequirements.ImmutableNationTable;
 import io.prestosql.tempto.query.QueryExecutor;
@@ -35,9 +34,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Requires(ImmutableNationTable.class)
 public class TestHiveBasicTableStatistics
-        extends ProductTest
+        extends HiveProductTest
 {
-    @Test(groups = {HIVE_TABLE_STATISTICS})
+    @Test(groups = HIVE_TABLE_STATISTICS)
     public void testCreateUnpartitioned()
     {
         String tableName = "test_basic_statistics_unpartitioned_ctas_presto";
@@ -55,7 +54,7 @@ public class TestHiveBasicTableStatistics
         }
     }
 
-    @Test(groups = {HIVE_TABLE_STATISTICS})
+    @Test(groups = HIVE_TABLE_STATISTICS)
     public void testCreateTableWithNoData()
     {
         String tableName = "test_basic_statistics_unpartitioned_ctas_presto_with_no_data";
@@ -72,7 +71,7 @@ public class TestHiveBasicTableStatistics
         }
     }
 
-    @Test(groups = {HIVE_TABLE_STATISTICS})
+    @Test(groups = HIVE_TABLE_STATISTICS)
     public void testInsertUnpartitioned()
     {
         String tableName = "test_basic_statistics_unpartitioned_insert_presto";
@@ -108,7 +107,7 @@ public class TestHiveBasicTableStatistics
         }
     }
 
-    @Test(groups = {HIVE_TABLE_STATISTICS})
+    @Test(groups = HIVE_TABLE_STATISTICS)
     public void testCreatePartitioned()
     {
         String tableName = "test_basic_statistics_partitioned_ctas_presto";
@@ -127,8 +126,10 @@ public class TestHiveBasicTableStatistics
                 "WHERE n_nationkey <> 23", tableName));
 
         try {
-            BasicStatistics tableStatistics = getBasicStatisticsForTable(onHive(), tableName);
-            assertThatStatisticsAreNotPresent(tableStatistics);
+            if (getHiveVersionMajor() < 3) {
+                BasicStatistics tableStatistics = getBasicStatisticsForTable(onHive(), tableName);
+                assertThatStatisticsAreNotPresent(tableStatistics);
+            }
 
             BasicStatistics firstPartitionStatistics = getBasicStatisticsForPartition(onHive(), tableName, "n_regionkey=1");
             assertThatStatisticsAreNonZero(firstPartitionStatistics);
@@ -143,7 +144,7 @@ public class TestHiveBasicTableStatistics
         }
     }
 
-    @Test(groups = {HIVE_TABLE_STATISTICS})
+    @Test(groups = HIVE_TABLE_STATISTICS)
     public void testAnalyzePartitioned()
     {
         String tableName = "test_basic_statistics_analyze_partitioned";
@@ -162,8 +163,10 @@ public class TestHiveBasicTableStatistics
                 "WHERE n_regionkey = 1", tableName));
 
         try {
-            BasicStatistics tableStatistics = getBasicStatisticsForTable(onHive(), tableName);
-            assertThatStatisticsAreNotPresent(tableStatistics);
+            if (getHiveVersionMajor() < 3) {
+                BasicStatistics tableStatistics = getBasicStatisticsForTable(onHive(), tableName);
+                assertThatStatisticsAreNotPresent(tableStatistics);
+            }
 
             BasicStatistics partitionStatisticsBefore = getBasicStatisticsForPartition(onHive(), tableName, "n_regionkey=1");
             assertThatStatisticsArePresent(partitionStatisticsBefore);
@@ -184,7 +187,7 @@ public class TestHiveBasicTableStatistics
         }
     }
 
-    @Test(groups = {HIVE_TABLE_STATISTICS})
+    @Test(groups = HIVE_TABLE_STATISTICS)
     public void testAnalyzeUnpartitioned()
     {
         String tableName = "test_basic_statistics_analyze_unpartitioned";
@@ -217,7 +220,7 @@ public class TestHiveBasicTableStatistics
         }
     }
 
-    @Test(groups = {HIVE_TABLE_STATISTICS})
+    @Test(groups = HIVE_TABLE_STATISTICS)
     public void testInsertPartitioned()
     {
         String tableName = "test_basic_statistics_partitioned_insert_presto";
@@ -235,8 +238,10 @@ public class TestHiveBasicTableStatistics
                 ") ", tableName));
 
         try {
-            BasicStatistics tableStatisticsAfterCreate = getBasicStatisticsForTable(onHive(), tableName);
-            assertThatStatisticsAreNotPresent(tableStatisticsAfterCreate);
+            if (getHiveVersionMajor() < 3) {
+                BasicStatistics tableStatisticsAfterCreate = getBasicStatisticsForTable(onHive(), tableName);
+                assertThatStatisticsAreNotPresent(tableStatisticsAfterCreate);
+            }
 
             insertNationData(onPresto(), tableName);
 
@@ -255,7 +260,7 @@ public class TestHiveBasicTableStatistics
         }
     }
 
-    @Test(groups = {HIVE_TABLE_STATISTICS})
+    @Test(groups = HIVE_TABLE_STATISTICS)
     public void testInsertBucketed()
     {
         String tableName = "test_basic_statistics_bucketed_insert_presto";
@@ -294,7 +299,7 @@ public class TestHiveBasicTableStatistics
         }
     }
 
-    @Test(groups = {HIVE_TABLE_STATISTICS})
+    @Test(groups = HIVE_TABLE_STATISTICS)
     public void testInsertBucketedPartitioned()
     {
         String tableName = "test_basic_statistics_bucketed_partitioned_insert_presto";
@@ -313,8 +318,10 @@ public class TestHiveBasicTableStatistics
                 "WHERE n_regionkey = 1", tableName));
 
         try {
-            BasicStatistics tableStatistics = getBasicStatisticsForTable(onHive(), tableName);
-            assertThatStatisticsAreNotPresent(tableStatistics);
+            if (getHiveVersionMajor() < 3) {
+                BasicStatistics tableStatistics = getBasicStatisticsForTable(onHive(), tableName);
+                assertThatStatisticsAreNotPresent(tableStatistics);
+            }
 
             BasicStatistics firstPartitionStatistics = getBasicStatisticsForPartition(onHive(), tableName, "n_regionkey=1");
             assertThatStatisticsAreNonZero(firstPartitionStatistics);

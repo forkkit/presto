@@ -122,6 +122,7 @@ public class FeaturesConfig
     private boolean optimizeTopNRowNumber = true;
     private boolean workProcessorPipelines;
     private boolean skipRedundantSort = true;
+    private boolean predicatePushdownUseTableProperties = true;
 
     private Duration iterativeOptimizerTimeout = new Duration(3, MINUTES); // by default let optimizer wait a long time in case it retrieves some data from ConnectorMetadata
     private boolean enableDynamicFiltering;
@@ -267,13 +268,13 @@ public class FeaturesConfig
         return this;
     }
 
+    @Min(0)
     public int getConcurrentLifespansPerTask()
     {
         return concurrentLifespansPerTask;
     }
 
     @Config("concurrent-lifespans-per-task")
-    @Min(0)
     @ConfigDescription("Experimental: Default number of lifespans that run in parallel on each task when grouped execution is enabled")
     // When set to zero, a limit is not imposed on the number of lifespans that run in parallel
     public FeaturesConfig setConcurrentLifespansPerTask(int concurrentLifespansPerTask)
@@ -943,6 +944,18 @@ public class FeaturesConfig
     public FeaturesConfig setSkipRedundantSort(boolean value)
     {
         this.skipRedundantSort = value;
+        return this;
+    }
+
+    public boolean isPredicatePushdownUseTableProperties()
+    {
+        return predicatePushdownUseTableProperties;
+    }
+
+    @Config("optimizer.predicate-pushdown-use-table-properties")
+    public FeaturesConfig setPredicatePushdownUseTableProperties(boolean predicatePushdownUseTableProperties)
+    {
+        this.predicatePushdownUseTableProperties = predicatePushdownUseTableProperties;
         return this;
     }
 }

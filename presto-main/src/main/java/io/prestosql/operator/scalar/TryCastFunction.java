@@ -17,7 +17,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Primitives;
 import io.prestosql.metadata.BoundVariables;
 import io.prestosql.metadata.FunctionKind;
+import io.prestosql.metadata.FunctionMetadata;
 import io.prestosql.metadata.Metadata;
+import io.prestosql.metadata.ResolvedFunction;
 import io.prestosql.metadata.Signature;
 import io.prestosql.metadata.SqlScalarFunction;
 import io.prestosql.operator.scalar.ScalarFunctionImplementation.ArgumentProperty;
@@ -40,32 +42,18 @@ public class TryCastFunction
 
     public TryCastFunction()
     {
-        super(new Signature(
-                "TRY_CAST",
-                FunctionKind.SCALAR,
-                ImmutableList.of(typeVariable("F"), typeVariable("T")),
-                ImmutableList.of(),
-                new TypeSignature("T"),
-                ImmutableList.of(new TypeSignature("F")),
-                false));
-    }
-
-    @Override
-    public boolean isHidden()
-    {
-        return true;
-    }
-
-    @Override
-    public boolean isDeterministic()
-    {
-        return true;
-    }
-
-    @Override
-    public String getDescription()
-    {
-        return "";
+        super(new FunctionMetadata(
+                new Signature(
+                        "TRY_CAST",
+                        FunctionKind.SCALAR,
+                        ImmutableList.of(typeVariable("F"), typeVariable("T")),
+                        ImmutableList.of(),
+                        new TypeSignature("T"),
+                        ImmutableList.of(new TypeSignature("F")),
+                        false),
+                true,
+                true,
+                ""));
     }
 
     @Override
@@ -79,8 +67,8 @@ public class TryCastFunction
         MethodHandle tryCastHandle;
 
         // the resulting method needs to return a boxed type
-        Signature signature = metadata.getCoercion(fromType, toType);
-        ScalarFunctionImplementation implementation = metadata.getScalarFunctionImplementation(signature);
+        ResolvedFunction resolvedFunction = metadata.getCoercion(fromType, toType);
+        ScalarFunctionImplementation implementation = metadata.getScalarFunctionImplementation(resolvedFunction);
         argumentProperties = ImmutableList.of(implementation.getArgumentProperty(0));
         MethodHandle coercion = implementation.getMethodHandle();
         coercion = coercion.asType(methodType(returnType, coercion.type()));
@@ -88,6 +76,6 @@ public class TryCastFunction
         MethodHandle exceptionHandler = dropArguments(constant(returnType, null), 0, RuntimeException.class);
         tryCastHandle = catchException(coercion, RuntimeException.class, exceptionHandler);
 
-        return new ScalarFunctionImplementation(true, argumentProperties, tryCastHandle, isDeterministic());
+        return new ScalarFunctionImplementation(true, argumentProperties, tryCastHandle);
     }
 }

@@ -999,39 +999,79 @@ public abstract class AbstractTestQueries
     }
 
     @Test
-    public void testWildcard()
+    public void testSelectAllFromTable()
     {
         assertQuery("SELECT * FROM orders");
-    }
 
-    @Test
-    public void testMultipleWildcards()
-    {
+        // multiple wildcards
         assertQuery("SELECT *, 123, * FROM orders");
-    }
 
-    @Test
-    public void testMixedWildcards()
-    {
-        assertQuery("SELECT *, orders.*, orderkey FROM orders");
-    }
-
-    @Test
-    public void testQualifiedWildcardFromAlias()
-    {
-        assertQuery("SELECT T.* FROM orders T");
-    }
-
-    @Test
-    public void testQualifiedWildcardFromInlineView()
-    {
-        assertQuery("SELECT T.* FROM (SELECT orderkey + custkey FROM orders) T");
-    }
-
-    @Test
-    public void testQualifiedWildcard()
-    {
+        // qualified wildcard
         assertQuery("SELECT orders.* FROM orders");
+
+        // mixed wildcards
+        assertQuery("SELECT *, orders.*, orderkey FROM orders");
+
+        // qualified wildcard from alias
+        assertQuery("SELECT T.* FROM orders T");
+
+        // TODO enable testing the following supported queries
+        /*
+        // qualified wildcard and column aliases
+        assertQuery("SELECT region.* AS (a, b, c) FROM region");
+        assertQuery("SELECT T.*  AS (a, b, c) FROM region T");
+        assertQuery("SELECT d1, d2, d3 FROM (SELECT Tc.* AS (d1, d2, d3) FROM (SELECT Ta.* AS (b1, b2, b3) FROM region Ta (a1, a2, a3)) Tc (c1, c2, c3))");
+        */
+
+        // wildcard from aliased table with column aliases
+        assertQuery("SELECT a, b, c, d FROM (SELECT T.* FROM nation T (a, b, c, d))");
+
+        //qualified wildcard from inline view
+        assertQuery("SELECT T.* FROM (SELECT orderkey + custkey FROM orders) T");
+
+        // wildcard from table with order by
+        assertQuery("SELECT name FROM (SELECT * FROM region ORDER BY name DESC LIMIT 2)", "VALUES 'MIDDLE EAST', 'EUROPE'");
+        assertQuery("SELECT y FROM (SELECT r.* AS (x, y, z) FROM region r ORDER BY name DESC LIMIT 2)", "VALUES 'MIDDLE EAST', 'EUROPE'");
+        assertQuery("SELECT y FROM (SELECT r.* AS (x, y, z) FROM region r ORDER BY y DESC LIMIT 2)", "VALUES 'MIDDLE EAST', 'EUROPE'");
+    }
+
+    @Test
+    public void testSelectAllFromRow()
+    {
+        // wildcard from row with aggreggation
+        assertQuery("SELECT (count(*), true).* FROM nation", "SELECT 25, true");
+
+        // wildcard from subquery
+        assertQuery("SELECT (SELECT (name, regionkey) FROM nation WHERE name='ALGERIA').*", "SELECT 'ALGERIA', 0");
+        assertQuery("SELECT (SELECT (count(*), true) FROM nation WHERE regionkey = 0).*", "SELECT 5, true");
+
+        // wildcard from row with order by
+        assertQueryOrdered(
+                "SELECT * FROM (SELECT (ROW(name, regionkey)).* FROM region) ORDER BY 1 DESC",
+                "VALUES " +
+                        "('MIDDLE EAST',    4), " +
+                        "('EUROPE',         3), " +
+                        "('ASIA',           2), " +
+                        "('AMERICA',        1), " +
+                        "('AFRICA',         0) ");
+
+        assertQueryOrdered(
+                "SELECT (ROW(name, regionkey)).* FROM region ORDER BY 1 DESC",
+                "VALUES " +
+                        "('MIDDLE EAST',    4), " +
+                        "('EUROPE',         3), " +
+                        "('ASIA',           2), " +
+                        "('AMERICA',        1), " +
+                        "('AFRICA',         0) ");
+
+        assertQueryOrdered(
+                "SELECT (ROW(name, regionkey)).* AS (x, y) FROM region ORDER BY y DESC",
+                "VALUES " +
+                        "('MIDDLE EAST',    4), " +
+                        "('EUROPE',         3), " +
+                        "('ASIA',           2), " +
+                        "('AMERICA',        1), " +
+                        "('AFRICA',         0) ");
     }
 
     @Test
@@ -1474,6 +1514,9 @@ public abstract class AbstractTestQueries
         assertQuery(
                 "SELECT x, T.y, z + 1 FROM (SELECT custkey, orderstatus, totalprice FROM orders) T (x, y, z)",
                 "SELECT custkey, orderstatus, totalprice + 1 FROM orders");
+
+        // wildcard from aliased table with column aliases
+        assertQuery("SELECT a, b, c FROM (SELECT T.* FROM region T (a, b, c))");
     }
 
     @Test
@@ -2243,7 +2286,7 @@ public abstract class AbstractTestQueries
     }
 
     @Test
-    public void testIOExplain()
+    public void testIoExplain()
     {
         String query = "SELECT * FROM orders";
         MaterializedResult result = computeActual("EXPLAIN (TYPE IO) " + query);

@@ -14,7 +14,6 @@
 package io.prestosql.operator;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import io.airlift.slice.Slice;
 import io.prestosql.metadata.BoundVariables;
 import io.prestosql.metadata.FunctionKind;
@@ -52,7 +51,6 @@ import io.prestosql.spi.function.SqlType;
 import io.prestosql.spi.function.TypeParameter;
 import io.prestosql.spi.function.TypeParameterSpecialization;
 import io.prestosql.spi.type.DoubleType;
-import io.prestosql.spi.type.StandardTypes;
 import io.prestosql.spi.type.Type;
 import io.prestosql.spi.type.TypeSignature;
 import io.prestosql.spi.type.TypeSignatureParameter;
@@ -72,7 +70,6 @@ import static io.prestosql.operator.aggregation.AggregationFromAnnotationsParser
 import static io.prestosql.spi.function.OperatorType.LESS_THAN;
 import static io.prestosql.spi.type.StandardTypes.ARRAY;
 import static io.prestosql.spi.type.StandardTypes.DOUBLE;
-import static io.prestosql.spi.type.TypeSignature.parseTypeSignature;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
@@ -115,9 +112,9 @@ public class TestAnnotationEngineForAggregates
                 ImmutableList.of(DoubleType.DOUBLE.getTypeSignature()));
 
         ParametricAggregation aggregation = parseFunctionDefinition(ExactAggregationFunction.class);
-        assertEquals(aggregation.getDescription(), "Simple exact aggregate description");
-        assertTrue(aggregation.isDeterministic());
-        assertEquals(aggregation.getSignature(), expectedSignature);
+        assertEquals(aggregation.getFunctionMetadata().getDescription(), "Simple exact aggregate description");
+        assertTrue(aggregation.getFunctionMetadata().isDeterministic());
+        assertEquals(aggregation.getFunctionMetadata().getSignature(), expectedSignature);
         ParametricImplementationsGroup<AggregationImplementation> implementations = aggregation.getImplementations();
         assertImplementationCount(implementations, 1, 0, 0);
         AggregationImplementation implementation = getOnlyElement(implementations.getExactImplementations().values());
@@ -167,7 +164,7 @@ public class TestAnnotationEngineForAggregates
                 ImmutableList.of(DoubleType.DOUBLE.getTypeSignature()));
 
         ParametricAggregation aggregation = parseFunctionDefinition(StateOnDifferentThanFirstPositionAggregationFunction.class);
-        assertEquals(aggregation.getSignature(), expectedSignature);
+        assertEquals(aggregation.getFunctionMetadata().getSignature(), expectedSignature);
 
         AggregationImplementation implementation = getOnlyElement(aggregation.getImplementations().getExactImplementations().values());
         assertEquals(implementation.getDefinitionClass(), StateOnDifferentThanFirstPositionAggregationFunction.class);
@@ -310,9 +307,9 @@ public class TestAnnotationEngineForAggregates
                 ImmutableList.of(DoubleType.DOUBLE.getTypeSignature()));
 
         ParametricAggregation aggregation = parseFunctionDefinition(NotDecomposableAggregationFunction.class);
-        assertEquals(aggregation.getDescription(), "Aggregate with Decomposable=false");
-        assertTrue(aggregation.isDeterministic());
-        assertEquals(aggregation.getSignature(), expectedSignature);
+        assertEquals(aggregation.getFunctionMetadata().getDescription(), "Aggregate with Decomposable=false");
+        assertTrue(aggregation.getFunctionMetadata().isDeterministic());
+        assertEquals(aggregation.getFunctionMetadata().getSignature(), expectedSignature);
 
         InternalAggregationFunction specialized = aggregation.specialize(BoundVariables.builder().build(), 1, METADATA);
         assertEquals(specialized.getFinalType(), DoubleType.DOUBLE);
@@ -388,9 +385,9 @@ public class TestAnnotationEngineForAggregates
                 false);
 
         ParametricAggregation aggregation = parseFunctionDefinition(GenericAggregationFunction.class);
-        assertEquals(aggregation.getDescription(), "Simple aggregate with two generic implementations");
-        assertTrue(aggregation.isDeterministic());
-        assertEquals(aggregation.getSignature(), expectedSignature);
+        assertEquals(aggregation.getFunctionMetadata().getDescription(), "Simple aggregate with two generic implementations");
+        assertTrue(aggregation.getFunctionMetadata().isDeterministic());
+        assertEquals(aggregation.getFunctionMetadata().getSignature(), expectedSignature);
         ParametricImplementationsGroup<AggregationImplementation> implementations = aggregation.getImplementations();
         assertImplementationCount(implementations, 0, 0, 2);
         AggregationImplementation implementationDouble = implementations.getGenericImplementations().stream().filter(impl -> impl.getStateClass() == NullableDoubleState.class).collect(toImmutableList()).get(0);
@@ -460,9 +457,9 @@ public class TestAnnotationEngineForAggregates
                 ImmutableList.of(DoubleType.DOUBLE.getTypeSignature()));
 
         ParametricAggregation aggregation = parseFunctionDefinition(BlockInputAggregationFunction.class);
-        assertEquals(aggregation.getDescription(), "Simple aggregate with @BlockPosition usage");
-        assertTrue(aggregation.isDeterministic());
-        assertEquals(aggregation.getSignature(), expectedSignature);
+        assertEquals(aggregation.getFunctionMetadata().getDescription(), "Simple aggregate with @BlockPosition usage");
+        assertTrue(aggregation.getFunctionMetadata().isDeterministic());
+        assertEquals(aggregation.getFunctionMetadata().getSignature(), expectedSignature);
         ParametricImplementationsGroup<AggregationImplementation> implementations = aggregation.getImplementations();
         assertImplementationCount(implementations, 1, 0, 0);
         AggregationImplementation implementation = getOnlyElement(implementations.getExactImplementations().values());
@@ -543,13 +540,13 @@ public class TestAnnotationEngineForAggregates
                 ImmutableList.of(typeVariable("T")),
                 ImmutableList.of(),
                 new TypeSignature("T"),
-                ImmutableList.of(new TypeSignature(ARRAY, TypeSignatureParameter.of(new TypeSignature("T"))), new TypeSignature("T")),
+                ImmutableList.of(new TypeSignature(ARRAY, TypeSignatureParameter.typeParameter(new TypeSignature("T"))), new TypeSignature("T")),
                 false);
 
         ParametricAggregation aggregation = parseFunctionDefinition(ImplicitSpecializedAggregationFunction.class);
-        assertEquals(aggregation.getDescription(), "Simple implicit specialized aggregate");
-        assertTrue(aggregation.isDeterministic());
-        assertEquals(aggregation.getSignature(), expectedSignature);
+        assertEquals(aggregation.getFunctionMetadata().getDescription(), "Simple implicit specialized aggregate");
+        assertTrue(aggregation.getFunctionMetadata().isDeterministic());
+        assertEquals(aggregation.getFunctionMetadata().getSignature(), expectedSignature);
         ParametricImplementationsGroup<AggregationImplementation> implementations = aggregation.getImplementations();
         assertImplementationCount(implementations, 0, 0, 2);
 
@@ -635,13 +632,13 @@ public class TestAnnotationEngineForAggregates
                 ImmutableList.of(typeVariable("T")),
                 ImmutableList.of(),
                 new TypeSignature("T"),
-                ImmutableList.of(new TypeSignature(ARRAY, TypeSignatureParameter.of(new TypeSignature("T")))),
+                ImmutableList.of(new TypeSignature(ARRAY, TypeSignatureParameter.typeParameter(new TypeSignature("T")))),
                 false);
 
         ParametricAggregation aggregation = parseFunctionDefinition(ExplicitSpecializedAggregationFunction.class);
-        assertEquals(aggregation.getDescription(), "Simple explicit specialized aggregate");
-        assertTrue(aggregation.isDeterministic());
-        assertEquals(aggregation.getSignature(), expectedSignature);
+        assertEquals(aggregation.getFunctionMetadata().getDescription(), "Simple explicit specialized aggregate");
+        assertTrue(aggregation.getFunctionMetadata().isDeterministic());
+        assertEquals(aggregation.getFunctionMetadata().getSignature(), expectedSignature);
         ParametricImplementationsGroup<AggregationImplementation> implementations = aggregation.getImplementations();
         assertImplementationCount(implementations, 0, 1, 1);
         AggregationImplementation implementation1 = implementations.getSpecializedImplementations().get(0);
@@ -719,13 +716,13 @@ public class TestAnnotationEngineForAggregates
         List<ParametricAggregation> aggregations = parseFunctionDefinitions(MultiOutputAggregationFunction.class);
         assertEquals(aggregations.size(), 2);
 
-        ParametricAggregation aggregation1 = aggregations.stream().filter(aggregate -> aggregate.getSignature().getName().equals("multi_output_aggregate_1")).collect(toImmutableList()).get(0);
-        assertEquals(aggregation1.getSignature(), expectedSignature1);
-        assertEquals(aggregation1.getDescription(), "Simple multi output function aggregate specialized description");
+        ParametricAggregation aggregation1 = aggregations.stream().filter(aggregate -> aggregate.getFunctionMetadata().getSignature().getName().equals("multi_output_aggregate_1")).collect(toImmutableList()).get(0);
+        assertEquals(aggregation1.getFunctionMetadata().getSignature(), expectedSignature1);
+        assertEquals(aggregation1.getFunctionMetadata().getDescription(), "Simple multi output function aggregate specialized description");
 
-        ParametricAggregation aggregation2 = aggregations.stream().filter(aggregate -> aggregate.getSignature().getName().equals("multi_output_aggregate_2")).collect(toImmutableList()).get(0);
-        assertEquals(aggregation2.getSignature(), expectedSignature2);
-        assertEquals(aggregation2.getDescription(), "Simple multi output function aggregate generic description");
+        ParametricAggregation aggregation2 = aggregations.stream().filter(aggregate -> aggregate.getFunctionMetadata().getSignature().getName().equals("multi_output_aggregate_2")).collect(toImmutableList()).get(0);
+        assertEquals(aggregation2.getFunctionMetadata().getSignature(), expectedSignature2);
+        assertEquals(aggregation2.getFunctionMetadata().getDescription(), "Simple multi output function aggregate generic description");
 
         List<AggregationMetadata.ParameterMetadata.ParameterType> expectedMetadataTypes = ImmutableList.of(AggregationMetadata.ParameterMetadata.ParameterType.STATE, AggregationMetadata.ParameterMetadata.ParameterType.INPUT_CHANNEL);
 
@@ -754,7 +751,7 @@ public class TestAnnotationEngineForAggregates
     {
         @InputFunction
         public static void input(
-                @OperatorDependency(operator = LESS_THAN, returnType = StandardTypes.BOOLEAN, argumentTypes = {DOUBLE, DOUBLE}) MethodHandle methodHandle,
+                @OperatorDependency(operator = LESS_THAN, argumentTypes = {DOUBLE, DOUBLE}) MethodHandle methodHandle,
                 @AggregationState NullableDoubleState state,
                 @SqlType(DOUBLE) double value)
         {
@@ -763,7 +760,7 @@ public class TestAnnotationEngineForAggregates
 
         @CombineFunction
         public static void combine(
-                @OperatorDependency(operator = LESS_THAN, returnType = StandardTypes.BOOLEAN, argumentTypes = {DOUBLE, DOUBLE}) MethodHandle methodHandle,
+                @OperatorDependency(operator = LESS_THAN, argumentTypes = {DOUBLE, DOUBLE}) MethodHandle methodHandle,
                 @AggregationState NullableDoubleState combine1,
                 @AggregationState NullableDoubleState combine2)
         {
@@ -772,7 +769,7 @@ public class TestAnnotationEngineForAggregates
 
         @OutputFunction(DOUBLE)
         public static void output(
-                @OperatorDependency(operator = LESS_THAN, returnType = StandardTypes.BOOLEAN, argumentTypes = {DOUBLE, DOUBLE}) MethodHandle methodHandle,
+                @OperatorDependency(operator = LESS_THAN, argumentTypes = {DOUBLE, DOUBLE}) MethodHandle methodHandle,
                 @AggregationState NullableDoubleState state,
                 BlockBuilder out)
         {
@@ -781,7 +778,7 @@ public class TestAnnotationEngineForAggregates
 
         @AggregationStateSerializerFactory(NullableDoubleState.class)
         public static CustomStateSerializerAggregationFunction.CustomSerializer createSerializer(
-                @OperatorDependency(operator = LESS_THAN, returnType = StandardTypes.BOOLEAN, argumentTypes = {DOUBLE, DOUBLE}) MethodHandle methodHandle)
+                @OperatorDependency(operator = LESS_THAN, argumentTypes = {DOUBLE, DOUBLE}) MethodHandle methodHandle)
         {
             return new CustomStateSerializerAggregationFunction.CustomSerializer();
         }
@@ -797,9 +794,9 @@ public class TestAnnotationEngineForAggregates
                 ImmutableList.of(DoubleType.DOUBLE.getTypeSignature()));
 
         ParametricAggregation aggregation = parseFunctionDefinition(InjectOperatorAggregateFunction.class);
-        assertEquals(aggregation.getDescription(), "Simple aggregate with operator injected");
-        assertTrue(aggregation.isDeterministic());
-        assertEquals(aggregation.getSignature(), expectedSignature);
+        assertEquals(aggregation.getFunctionMetadata().getDescription(), "Simple aggregate with operator injected");
+        assertTrue(aggregation.getFunctionMetadata().isDeterministic());
+        assertEquals(aggregation.getFunctionMetadata().getSignature(), expectedSignature);
         ParametricImplementationsGroup<AggregationImplementation> implementations = aggregation.getImplementations();
 
         AggregationImplementation implementation = getOnlyElement(implementations.getExactImplementations().values());
@@ -878,9 +875,9 @@ public class TestAnnotationEngineForAggregates
                 false);
 
         ParametricAggregation aggregation = parseFunctionDefinition(InjectTypeAggregateFunction.class);
-        assertEquals(aggregation.getDescription(), "Simple aggregate with type injected");
-        assertTrue(aggregation.isDeterministic());
-        assertEquals(aggregation.getSignature(), expectedSignature);
+        assertEquals(aggregation.getFunctionMetadata().getDescription(), "Simple aggregate with type injected");
+        assertTrue(aggregation.getFunctionMetadata().isDeterministic());
+        assertEquals(aggregation.getFunctionMetadata().getSignature(), expectedSignature);
         ParametricImplementationsGroup<AggregationImplementation> implementations = aggregation.getImplementations();
 
         assertEquals(implementations.getGenericImplementations().size(), 1);
@@ -953,13 +950,13 @@ public class TestAnnotationEngineForAggregates
         Signature expectedSignature = new Signature(
                 "inject_literal_aggregate",
                 FunctionKind.AGGREGATE,
-                parseTypeSignature("varchar(x)", ImmutableSet.of("x")),
-                ImmutableList.of(parseTypeSignature("varchar(x)", ImmutableSet.of("x"))));
+                new TypeSignature("varchar", TypeSignatureParameter.typeVariable("x")),
+                ImmutableList.of(new TypeSignature("varchar", TypeSignatureParameter.typeVariable("x"))));
 
         ParametricAggregation aggregation = parseFunctionDefinition(InjectLiteralAggregateFunction.class);
-        assertEquals(aggregation.getDescription(), "Simple aggregate with type literal");
-        assertTrue(aggregation.isDeterministic());
-        assertEquals(aggregation.getSignature(), expectedSignature);
+        assertEquals(aggregation.getFunctionMetadata().getDescription(), "Simple aggregate with type literal");
+        assertTrue(aggregation.getFunctionMetadata().isDeterministic());
+        assertEquals(aggregation.getFunctionMetadata().getSignature(), expectedSignature);
         ParametricImplementationsGroup<AggregationImplementation> implementations = aggregation.getImplementations();
 
         assertEquals(implementations.getGenericImplementations().size(), 1);
@@ -1026,15 +1023,15 @@ public class TestAnnotationEngineForAggregates
                 FunctionKind.AGGREGATE,
                 ImmutableList.of(),
                 ImmutableList.of(new LongVariableConstraint("z", "x + y")),
-                parseTypeSignature("varchar(z)", ImmutableSet.of("z")),
-                ImmutableList.of(parseTypeSignature("varchar(x)", ImmutableSet.of("x")),
-                        parseTypeSignature("varchar(y)", ImmutableSet.of("y"))),
+                new TypeSignature("varchar", TypeSignatureParameter.typeVariable("z")),
+                ImmutableList.of(new TypeSignature("varchar", TypeSignatureParameter.typeVariable("x")),
+                        new TypeSignature("varchar", TypeSignatureParameter.typeVariable("y"))),
                 false);
 
         ParametricAggregation aggregation = parseFunctionDefinition(LongConstraintAggregateFunction.class);
-        assertEquals(aggregation.getDescription(), "Parametric aggregate with parametric type returned");
-        assertTrue(aggregation.isDeterministic());
-        assertEquals(aggregation.getSignature(), expectedSignature);
+        assertEquals(aggregation.getFunctionMetadata().getDescription(), "Parametric aggregate with parametric type returned");
+        assertTrue(aggregation.getFunctionMetadata().isDeterministic());
+        assertEquals(aggregation.getFunctionMetadata().getSignature(), expectedSignature);
         ParametricImplementationsGroup<AggregationImplementation> implementations = aggregation.getImplementations();
 
         assertEquals(implementations.getGenericImplementations().size(), 1);
@@ -1108,9 +1105,9 @@ public class TestAnnotationEngineForAggregates
                 false);
 
         ParametricAggregation aggregation = parseFunctionDefinition(FixedTypeParameterInjectionAggregateFunction.class);
-        assertEquals(aggregation.getDescription(), "Simple aggregate with fixed parameter type injected");
-        assertTrue(aggregation.isDeterministic());
-        assertEquals(aggregation.getSignature(), expectedSignature);
+        assertEquals(aggregation.getFunctionMetadata().getDescription(), "Simple aggregate with fixed parameter type injected");
+        assertTrue(aggregation.getFunctionMetadata().isDeterministic());
+        assertEquals(aggregation.getFunctionMetadata().getSignature(), expectedSignature);
         ParametricImplementationsGroup<AggregationImplementation> implementations = aggregation.getImplementations();
         assertImplementationCount(implementations, 1, 0, 0);
         AggregationImplementation implementationDouble = implementations.getExactImplementations().get(expectedSignature);
@@ -1174,9 +1171,9 @@ public class TestAnnotationEngineForAggregates
                 false);
 
         ParametricAggregation aggregation = parseFunctionDefinition(PartiallyFixedTypeParameterInjectionAggregateFunction.class);
-        assertEquals(aggregation.getDescription(), "Simple aggregate with fixed parameter type injected");
-        assertTrue(aggregation.isDeterministic());
-        assertEquals(aggregation.getSignature(), expectedSignature);
+        assertEquals(aggregation.getFunctionMetadata().getDescription(), "Simple aggregate with fixed parameter type injected");
+        assertTrue(aggregation.getFunctionMetadata().isDeterministic());
+        assertEquals(aggregation.getFunctionMetadata().getSignature(), expectedSignature);
         ParametricImplementationsGroup<AggregationImplementation> implementations = aggregation.getImplementations();
         assertImplementationCount(implementations, 0, 0, 1);
         AggregationImplementation implementationDouble = implementations.getGenericImplementations().stream().filter(impl -> impl.getStateClass() == NullableDoubleState.class).collect(toImmutableList()).get(0);

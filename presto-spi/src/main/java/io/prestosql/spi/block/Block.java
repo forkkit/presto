@@ -15,6 +15,8 @@ package io.prestosql.spi.block;
 
 import io.airlift.slice.Slice;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.function.BiConsumer;
 
 import static io.prestosql.spi.block.BlockUtil.checkArrayRange;
@@ -163,7 +165,8 @@ public interface Block
     int getPositionCount();
 
     /**
-     * Returns the size of this block as if it was compacted, ignoring any over-allocations.
+     * Returns the size of this block as if it was compacted, ignoring any over-allocations
+     * and any unloaded nested blocks.
      * For example, in dictionary blocks, this only counts each dictionary entry once,
      * rather than each time a value is referenced.
      */
@@ -224,9 +227,10 @@ public interface Block
     String getEncodingName();
 
     /**
-     * Create a new block from the current block by keeping the same elements
-     * only with respect to {@code positions} that starts at {@code offset} and has length of {@code length}.
-     * May return a view over the data in this block or may return a copy
+     * Create a new block from the current block by keeping the same elements only with respect
+     * to {@code positions} that starts at {@code offset} and has length of {@code length}. The
+     * implementation may return a view over the data in this block or may return a copy, and the
+     * implementation is allowed to retain the positions array for use in the view.
      */
     default Block getPositions(int[] positions, int offset, int length)
     {
@@ -304,5 +308,13 @@ public interface Block
     default Block getLoadedBlock()
     {
         return this;
+    }
+
+    /**
+     * Gets the direct child blocks of this block.
+     */
+    default List<Block> getChildren()
+    {
+        return Collections.emptyList();
     }
 }
